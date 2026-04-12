@@ -6,6 +6,134 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
+// 线程函数
+DWORD WINAPI thread_function(LPVOID lpParam) {
+    ThreadPool* pool = (ThreadPool*)lpParam;
+    char buffer[BUFFER_SIZE];
+
+    while (1) {
+        // 等待信号量
+        WaitForSingleObject(pool->semaphore, INFINITE);
+
+        // 检查是否需要关闭
+        if (pool->shutdown) {
+            break;
+        }
+
+        // 加锁获取任务
+        WaitForSingleObject(pool->mutex, INFINITE);
+        Task task = pool->queue[pool->front];
+        pool->front = (pool->front + 1) % MAX_QUEUE;
+        ReleaseMutex(pool->mutex);
+
+        // 处理请求
+        memset(buffer, 0, BUFFER_SIZE);
+        int bytesReceived = recv(task.clientSocket, buffer, BUFFER_SIZE - 1, 0);
+        
+        if (bytesReceived > 0) {
+            handle_request(task.clientSocket, buffer);
+        }
+
+        closesocket(task.clientSocket);
+    }
+
+    return 0;
+}
+
+// 创建线程池
+ThreadPool* create_thread_pool() {
+    ThreadPool* pool = (ThreadPool*)malloc(sizeof(ThreadPool));
+    if (!pool) {
+        return NULL;
+    }
+
+    pool->front = 0;
+    pool->rear = 0;
+    pool->shutdown = 0;
+
+    // 创建互斥锁
+    pool->mutex = CreateMutex(NULL, FALSE, NULL);
+    if (!pool->mutex) {
+        free(pool);
+        return NULL;
+    }
+
+    // 创建信号量
+    pool->semaphore = CreateSemaphore(NULL, 0, MAX_QUEUE, NULL);
+    if (!pool->semaphore) {
+        CloseHandle(pool->mutex);
+        free(pool);
+        return NULL;
+    }
+
+    // 创建线程
+    for (int i = 0; i < MAX_THREADS; i++) {
+        pool->threads[i] = CreateThread(NULL, 0, thread_function, pool, 0, NULL);
+        if (!pool->threads[i]) {
+            // 清理已创建的线程
+            for (int j = 0; j < i; j++) {
+                CloseHandle(pool->threads[j]);
+            }
+            CloseHandle(pool->mutex);
+            CloseHandle(pool->semaphore);
+            free(pool);
+            return NULL;
+        }
+    }
+
+    return pool;
+}
+
+// 销毁线程池
+void destroy_thread_pool(ThreadPool* pool) {
+    if (!pool) {
+        return;
+    }
+
+    // 标记关闭
+    WaitForSingleObject(pool->mutex, INFINITE);
+    pool->shutdown = 1;
+    ReleaseMutex(pool->mutex);
+
+    // 唤醒所有线程
+    for (int i = 0; i < MAX_THREADS; i++) {
+        ReleaseSemaphore(pool->semaphore, 1, NULL);
+    }
+
+    // 等待所有线程结束
+    for (int i = 0; i < MAX_THREADS; i++) {
+        WaitForSingleObject(pool->threads[i], INFINITE);
+        CloseHandle(pool->threads[i]);
+    }
+
+    // 清理资源
+    CloseHandle(pool->mutex);
+    CloseHandle(pool->semaphore);
+    free(pool);
+}
+
+// 添加任务到线程池
+void add_task(ThreadPool* pool, SOCKET clientSocket, struct sockaddr_in clientAddr) {
+    WaitForSingleObject(pool->mutex, INFINITE);
+    
+    // 检查队列是否已满
+    int next = (pool->rear + 1) % MAX_QUEUE;
+    if (next == pool->front) {
+        // 队列已满，关闭连接
+        closesocket(clientSocket);
+        ReleaseMutex(pool->mutex);
+        return;
+    }
+
+    // 添加任务到队列
+    pool->queue[pool->rear].clientSocket = clientSocket;
+    pool->queue[pool->rear].clientAddr = clientAddr;
+    pool->rear = next;
+
+    ReleaseMutex(pool->mutex);
+    ReleaseSemaphore(pool->semaphore, 1, NULL);
+}
+
 // 初始化 Winsock 并创建监听套接字
 SOCKET create_server_socket(int port) {
     WSADATA wsaData;
@@ -52,9 +180,15 @@ void run_server(SOCKET serverSocket, int port) {
     printf("  Access: http://0.0.0.0:%d\n", port);
     printf("  Press Ctrl+C to stop.\n\n");
 
+    // 创建线程池
+    ThreadPool* pool = create_thread_pool();
+    if (!pool) {
+        printf("Error: Failed to create thread pool.\n");
+        return;
+    }
+
     struct sockaddr_in clientAddr;
     int clientAddrLen = sizeof(clientAddr);
-    char buffer[BUFFER_SIZE];
 
     while (1) {
         SOCKET clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientAddrLen);
@@ -62,13 +196,10 @@ void run_server(SOCKET serverSocket, int port) {
             continue;
         }
 
-        memset(buffer, 0, BUFFER_SIZE);
-        int bytesReceived = recv(clientSocket, buffer, BUFFER_SIZE - 1, 0);
-        
-        if (bytesReceived > 0) {
-            handle_request(clientSocket, buffer);
-        }
-
-        closesocket(clientSocket);
+        // 添加任务到线程池
+        add_task(pool, clientSocket, clientAddr);
     }
+
+    // 销毁线程池（实际上不会执行到这里，因为是无限循环）
+    destroy_thread_pool(pool);
 }
