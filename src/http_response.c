@@ -1,18 +1,33 @@
 #include "http_response.h"
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+
+// 生成ETag
+void generate_etag(char* etag, long content_length, time_t modified_time) {
+    sprintf(etag, "\"%ld-%ld\"", content_length, modified_time);
+}
 
 void send_header(SOCKET client, int status_code, const char* status_text, 
-                 const char* mime_type, long content_length) {
+                 const char* mime_type, long content_length, time_t modified_time) {
     char header[BUFFER_SIZE];
+    char etag[64];
+    generate_etag(etag, content_length, modified_time);
+    
     int header_len = sprintf(header,
         "HTTP/1.1 %d %s\r\n"
         "Content-Type: %s\r\n"
         "Content-Length: %ld\r\n"
         "Connection: close\r\n"
         "Server: http-server/1.0\r\n"
+        "Cache-Control: max-age=3600\r\n"
+        "ETag: %s\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "X-Content-Type-Options: nosniff\r\n"
+        "X-Frame-Options: SAMEORIGIN\r\n"
+        "X-XSS-Protection: 1; mode=block\r\n"
         "\r\n",
-        status_code, status_text, mime_type, content_length);
+        status_code, status_text, mime_type, content_length, etag);
     
     send(client, header, header_len, 0);
 }
@@ -88,7 +103,7 @@ void send_404(SOCKET client) {
         "    </div>\n"
         "</body>\n"
         "</html>";
-    send_header(client, 404, "Not Found", "text/html", (long)strlen(body));
+    send_header(client, 404, "Not Found", "text/html", (long)strlen(body), 0);
     send(client, body, (int)strlen(body), 0);
 }
 

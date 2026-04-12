@@ -24,12 +24,7 @@ void config_show() {
     printf("Directory Listing: %s\n", g_config.directory_listing ? "Enabled" : "Disabled");
     printf("Max Threads: %d\n", g_config.max_threads);
     printf("Max Queue: %d\n", g_config.max_queue);
-    printf("Enable CORS: %s\n", g_config.enable_cors ? "Yes" : "No");
-    printf("Index Files: ");
-    for (int i = 0; i < 5 && g_config.index_files[i][0]; i++) {
-        if (i > 0) printf(", ");
-        printf("%s", g_config.index_files[i]);
-    }
+    printf("Enable CORS: %s", g_config.enable_cors ? "Yes" : "No");
     printf("\n===========================\n\n");
 }
 

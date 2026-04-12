@@ -132,7 +132,7 @@ void send_file_from_path(SOCKET client, const char* path, const char* mime_type)
     
     if (get_cached_file(path, &cached_content, &cached_size, &cached_mtime)) {
         // 从缓存发送
-        send_header(client, 200, "OK", mime_type, cached_size);
+        send_header(client, 200, "OK", mime_type, cached_size, cached_mtime);
         send(client, cached_content, (int)cached_size, 0);
         return;
     }
@@ -164,7 +164,7 @@ void send_file_from_path(SOCKET client, const char* path, const char* mime_type)
                 }
                 
                 // 发送文件内容
-                send_header(client, 200, "OK", mime_type, file_size);
+                send_header(client, 200, "OK", mime_type, file_size, file_stat.st_mtime);
                 send(client, buffer, (int)file_size, 0);
                 free(buffer);
                 fclose(file);
@@ -174,8 +174,17 @@ void send_file_from_path(SOCKET client, const char* path, const char* mime_type)
         }
     }
     
+    // 获取文件最后修改时间
+    wchar_t wpath[PATH_MAX_LEN];
+    MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, PATH_MAX_LEN);
+    struct _stat file_stat;
+    time_t modified_time = 0;
+    if (_wstat(wpath, &file_stat) == 0) {
+        modified_time = file_stat.st_mtime;
+    }
+    
     // 对于大文件或缓存失败的情况，使用零拷贝传输
-    send_file_content(client, file, mime_type, file_size);
+    send_file_content(client, file, mime_type, file_size, modified_time);
     fclose(file);
 }
 
@@ -209,8 +218,8 @@ void send_partial_file_content(SOCKET client, FILE *file, const char *mime_type,
     }
 }
 
-void send_file_content(SOCKET client, FILE *file, const char *mime_type, long file_size) {
-    send_header(client, 200, "OK", mime_type, file_size);
+void send_file_content(SOCKET client, FILE *file, const char *mime_type, long file_size, time_t modified_time) {
+    send_header(client, 200, "OK", mime_type, file_size, modified_time);
 
     // 使用传统的读写方式发送文件
     char buffer[BUFFER_SIZE];
@@ -544,7 +553,7 @@ void send_directory_listing(SOCKET client, const char* dir_path, const char* req
     memcpy(html + html_size, footer_and_script, footer_len);
     html_size += footer_len;
     
-    send_header(client, 200, "OK", "text/html; charset=utf-8", (long)html_size);
+    send_header(client, 200, "OK", "text/html; charset=utf-8", (long)html_size, time(NULL));
     send(client, html, (int)html_size, 0);
     
     free(html);

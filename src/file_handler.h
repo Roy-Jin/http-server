@@ -40,7 +40,7 @@ int get_cached_file(const char* path, char** content, long* size, time_t* last_m
 void add_to_cache(const char* path, const char* content, long size, time_t last_modified);
 
 // 发送文件内容（已打开的文件）
-void send_file_content(SOCKET client, FILE* file, const char* mime_type, long file_size);
+void send_file_content(SOCKET client, FILE* file, const char* mime_type, long file_size, time_t modified_time);
 
 // 发送部分文件内容（支持范围请求）
 void send_partial_file_content(SOCKET client, FILE* file, const char* mime_type, long file_size, long start, long end);
