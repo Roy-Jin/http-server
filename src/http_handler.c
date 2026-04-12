@@ -6,6 +6,46 @@
 #include <stdio.h>
 #include <string.h>
 
+// 解析Range请求头
+int parse_range_header(const char* request, long file_size, long* start, long* end) {
+    const char* range_start = strstr(request, "Range:");
+    if (!range_start) {
+        return 0; // 没有Range头
+    }
+    
+    range_start += 6; // 跳过"Range: "
+    
+    // 检查是否是bytes范围请求
+    if (strncmp(range_start, "bytes=", 6) != 0) {
+        return 0;
+    }
+    
+    range_start += 6; // 跳过"bytes="
+    
+    // 解析范围
+    char* dash = strchr(range_start, '-');
+    if (!dash) {
+        return 0;
+    }
+    
+    // 解析起始位置
+    *start = atol(range_start);
+    
+    // 解析结束位置
+    if (dash[1] != '\0') {
+        *end = atol(dash + 1);
+    } else {
+        *end = file_size - 1;
+    }
+    
+    // 验证范围
+    if (*start < 0 || *start >= file_size || *end < *start || *end >= file_size) {
+        return 0;
+    }
+    
+    return 1;
+}
+
 // 辅助函数：打开UTF-8编码的文件路径
 FILE* fopen_utf8(const char* path, const char* mode) {
     wchar_t wpath[PATH_MAX_LEN];
@@ -49,13 +89,9 @@ int handle_index_files(SOCKET client, const char* root_dir) {
         sprintf(local_path, "%s/%s", root_dir, g_config.index_files[i]);
         FILE* file = fopen_utf8(local_path, "rb");
         if (file) {
-            fseek(file, 0, SEEK_END);
-            long file_size = ftell(file);
-            rewind(file);
-
-            const char* mime = get_mime_type(local_path);
-            send_file_content(client, file, mime, file_size);
             fclose(file);
+            const char* mime = get_mime_type(local_path);
+            send_file_from_path(client, local_path, mime);
             return 1;
         }
     }
@@ -64,19 +100,33 @@ int handle_index_files(SOCKET client, const char* root_dir) {
 }
 
 // 处理文件请求
-int handle_file_request(SOCKET client, const char* root_dir, const char* decoded_uri) {
+int handle_file_request(SOCKET client, const char* root_dir, const char* decoded_uri, const char* request) {
     char local_path[PATH_MAX_LEN];
     
     sprintf(local_path, "%s%s", root_dir, decoded_uri);
-    FILE* file = fopen_utf8(local_path, "rb");
     
+    // 检查文件是否存在
+    FILE* file = fopen_utf8(local_path, "rb");
     if (file) {
+        // 获取文件大小
         fseek(file, 0, SEEK_END);
         long file_size = ftell(file);
         rewind(file);
-
+        
+        // 检查是否有Range请求
+        long start = 0, end = 0;
         const char* mime = get_mime_type(local_path);
-        send_file_content(client, file, mime, file_size);
+        
+        if (parse_range_header(request, file_size, &start, &end)) {
+            // 处理范围请求
+            send_partial_file_content(client, file, mime, file_size, start, end);
+        } else {
+            // 正常请求，使用缓存机制
+            fclose(file);
+            send_file_from_path(client, local_path, mime);
+            return 1;
+        }
+        
         fclose(file);
         return 1;
     }
@@ -150,7 +200,7 @@ void handle_request(SOCKET client, const char* request) {
         }
     } else {
         // 处理非根目录请求
-        if (handle_file_request(client, g_config.root_dir, decoded_uri)) {
+        if (handle_file_request(client, g_config.root_dir, decoded_uri, request)) {
             return;
         }
         

@@ -1,15 +1,221 @@
 #include "file_handler.h"
 #include "http_response.h"
+#include "http_handler.h"
 #include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
+// 全局缓存实例
+FileCache g_file_cache = {
+    .head = NULL,
+    .max_items = 100,
+    .current_items = 0,
+    .max_size = 10 * 1024 * 1024, // 10MB
+    .current_size = 0
+};
+
+// 初始化文件缓存
+void init_file_cache(int max_items, long max_size) {
+    g_file_cache.max_items = max_items;
+    g_file_cache.max_size = max_size;
+    g_file_cache.current_items = 0;
+    g_file_cache.current_size = 0;
+    g_file_cache.head = NULL;
+}
+
+// 清理文件缓存
+void cleanup_file_cache() {
+    CacheItem* current = g_file_cache.head;
+    while (current) {
+        CacheItem* next = current->next;
+        free(current->content);
+        free(current);
+        current = next;
+    }
+    g_file_cache.head = NULL;
+    g_file_cache.current_items = 0;
+    g_file_cache.current_size = 0;
+}
+
+// 从缓存中获取文件
+int get_cached_file(const char* path, char** content, long* size, time_t* last_modified) {
+    CacheItem* current = g_file_cache.head;
+    CacheItem* prev = NULL;
+    
+    while (current) {
+        if (strcmp(current->path, path) == 0) {
+            // 更新访问时间
+            current->last_accessed = time(NULL);
+            
+            // 将当前项移到链表头部（LRU策略）
+            if (prev) {
+                prev->next = current->next;
+                current->next = g_file_cache.head;
+                g_file_cache.head = current;
+            }
+            
+            *content = current->content;
+            *size = current->size;
+            *last_modified = current->last_modified;
+            return 1;
+        }
+        prev = current;
+        current = current->next;
+    }
+    
+    return 0;
+}
+
+// 将文件添加到缓存
+void add_to_cache(const char* path, const char* content, long size, time_t last_modified) {
+    // 检查是否超过缓存大小限制
+    while (g_file_cache.current_size + size > g_file_cache.max_size || 
+           g_file_cache.current_items >= g_file_cache.max_items) {
+        // 移除最久未使用的项（链表尾部）
+        if (!g_file_cache.head) break;
+        
+        CacheItem* current = g_file_cache.head;
+        CacheItem* prev = NULL;
+        
+        // 找到链表尾部
+        while (current->next) {
+            prev = current;
+            current = current->next;
+        }
+        
+        // 移除尾部项
+        if (prev) {
+            prev->next = NULL;
+        } else {
+            g_file_cache.head = NULL;
+        }
+        
+        g_file_cache.current_size -= current->size;
+        g_file_cache.current_items--;
+        free(current->content);
+        free(current);
+    }
+    
+    // 创建新的缓存项
+    CacheItem* new_item = (CacheItem*)malloc(sizeof(CacheItem));
+    if (!new_item) return;
+    
+    strncpy(new_item->path, path, PATH_MAX_LEN - 1);
+    new_item->path[PATH_MAX_LEN - 1] = '\0';
+    new_item->content = (char*)malloc(size);
+    if (!new_item->content) {
+        free(new_item);
+        return;
+    }
+    memcpy(new_item->content, content, size);
+    new_item->size = size;
+    new_item->last_modified = last_modified;
+    new_item->last_accessed = time(NULL);
+    new_item->next = g_file_cache.head;
+    
+    // 添加到链表头部
+    g_file_cache.head = new_item;
+    g_file_cache.current_size += size;
+    g_file_cache.current_items++;
+}
+
+// 发送文件内容（从路径）
+void send_file_from_path(SOCKET client, const char* path, const char* mime_type) {
+    // 检查文件是否在缓存中
+    char* cached_content = NULL;
+    long cached_size = 0;
+    time_t cached_mtime = 0;
+    
+    if (get_cached_file(path, &cached_content, &cached_size, &cached_mtime)) {
+        // 从缓存发送
+        send_header(client, 200, "OK", mime_type, cached_size);
+        send(client, cached_content, (int)cached_size, 0);
+        return;
+    }
+    
+    // 打开文件
+    FILE* file = fopen_utf8(path, "rb");
+    if (!file) {
+        send_404(client);
+        return;
+    }
+    
+    // 获取文件大小
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    rewind(file);
+    
+    // 对于小文件（小于1MB），读取到内存并缓存
+    if (file_size < 1024 * 1024) {
+        char* buffer = (char*)malloc(file_size);
+        if (buffer) {
+            size_t bytes_read = fread(buffer, 1, file_size, file);
+            if (bytes_read == file_size) {
+                // 获取文件最后修改时间
+                wchar_t wpath[PATH_MAX_LEN];
+                MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, PATH_MAX_LEN);
+                struct _stat file_stat;
+                if (_wstat(wpath, &file_stat) == 0) {
+                    add_to_cache(path, buffer, file_size, file_stat.st_mtime);
+                }
+                
+                // 发送文件内容
+                send_header(client, 200, "OK", mime_type, file_size);
+                send(client, buffer, (int)file_size, 0);
+                free(buffer);
+                fclose(file);
+                return;
+            }
+            free(buffer);
+        }
+    }
+    
+    // 对于大文件或缓存失败的情况，使用零拷贝传输
+    send_file_content(client, file, mime_type, file_size);
+    fclose(file);
+}
+
+// 发送部分文件内容（支持范围请求）
+void send_partial_file_content(SOCKET client, FILE *file, const char *mime_type, long file_size, long start, long end) {
+    // 发送206 Partial Content响应头
+    char header[BUFFER_SIZE];
+    int header_len = snprintf(header, BUFFER_SIZE,
+        "HTTP/1.1 206 Partial Content\r\n"
+        "Content-Type: %s\r\n"
+        "Content-Length: %ld\r\n"
+        "Content-Range: bytes %ld-%ld/%ld\r\n"
+        "Accept-Ranges: bytes\r\n"
+        "Connection: close\r\n"
+        "\r\n",
+        mime_type, end - start + 1, start, end, file_size);
+    send(client, header, header_len, 0);
+
+    // 使用传统的读写方式发送文件的一部分
+    char buffer[BUFFER_SIZE];
+    size_t bytes_read;
+    fseek(file, start, SEEK_SET); // 设置文件指针到起始位置
+    long bytes_remaining = end - start + 1;
+    while (bytes_remaining > 0 && (bytes_read = fread(buffer, 1, BUFFER_SIZE, file)) > 0) {
+        size_t send_size = bytes_read;
+        if (send_size > bytes_remaining) {
+            send_size = bytes_remaining;
+        }
+        send(client, buffer, (int)send_size, 0);
+        bytes_remaining -= send_size;
+    }
+}
 
 void send_file_content(SOCKET client, FILE *file, const char *mime_type, long file_size) {
     send_header(client, 200, "OK", mime_type, file_size);
 
+    // 使用传统的读写方式发送文件
     char buffer[BUFFER_SIZE];
     size_t bytes_read;
+    rewind(file); // 重置文件指针
     while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, file)) > 0) {
         send(client, buffer, (int)bytes_read, 0);
     }
