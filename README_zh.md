@@ -17,6 +17,12 @@
 - ✅ **线程池支持** - 使用线程池处理并发请求，提高性能
 - ✅ **UTF-8文件路径支持** - 支持包含非ASCII字符的文件路径
 - ✅ **CORS支持** - 可选择启用跨域资源共享
+- ✅ **文件缓存** - LRU缓存策略，最大100项，最大10MB缓存空间
+- ✅ **范围请求支持** - 支持HTTP Range请求，可用于视频播放和断点续传
+- ✅ **索引文件支持** - 自动识别 index.html, index.htm, index.php, default.html, default.htm
+- ✅ **缓存控制** - 默认缓存时间3600秒
+- ✅ **连接超时** - 默认连接超时120秒
+- ✅ **彩色终端输出** - 支持彩色日志输出，便于调试
 
 ## 系统要求
 
@@ -37,7 +43,7 @@
 或者手动编译：
 
 ```bash
-gcc -o http-server.exe main.c src\server.c src\http_handler.c src\http_response.c src\file_handler.c src\utils.c -lws2_32 -liphlpapi
+gcc -o http-server.exe main.c src\server.c src\http_handler.c src\http_response.c src\file_handler.c src\utils.c src\config.c -lws2_32 -liphlpapi
 ```
 
 ### 2. 运行服务器
@@ -139,8 +145,6 @@ http-server/
 ├── README.md                 # 项目文档
 ├── README_zh.md              # 中文项目文档
 ├── .gitignore                # Git忽略文件
-├── OPTIMIZATION.md           # 优化说明文档
-├── config.json               # 配置文件
 ├── test/                     # 测试目录
 │   ├── www/                  # 测试网站文件
 │   │   ├── 0.png             # 测试图片
@@ -167,12 +171,15 @@ http-server/
 - 全局配置管理
 - 命令行参数解析
 - 配置默认值设置
+- 索引文件配置（index.html, index.htm, index.php, default.html, default.htm）
 
 ### server.h / server.c
 - 服务器配置和常量定义
 - 套接字创建和服务器运行逻辑
 - 线程池管理和并发处理
 - 默认端口：80，缓冲区大小：8192字节
+- 默认最大线程数：10，最大队列长度：50
+- 缓存时间：3600秒，连接超时：120秒
 
 ### http_handler.h / http_handler.c
 - HTTP请求解析和处理
@@ -188,6 +195,9 @@ http-server/
 - 文件内容发送
 - 目录列表生成
 - 文件操作处理
+- 文件缓存管理（LRU策略）
+- 范围请求支持（Range requests）
+- 默认缓存配置：最大100项，最大10MB
 
 ### utils.h / utils.c
 - MIME类型检测
@@ -195,6 +205,8 @@ http-server/
 - 目录检查
 - 文件大小格式化
 - URL解码功能
+- 时间戳生成
+- 彩色终端输出
 
 ## 许可证
 
@@ -207,10 +219,11 @@ http-server/
 ## 已知限制
 
 - 仅支持Windows平台
-- 不支持HTTPS
-- 不支持HTTP/2
-- 仅支持GET请求方法
-- 并发连接处理能力有限
+- 不支持HTTPS/SSL加密
+- 不支持HTTP/2协议
+- 不支持WebSocket协议
+- 不支持HTTP基本认证
+- 不支持Gzip压缩
 
 ---
 

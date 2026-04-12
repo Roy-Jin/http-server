@@ -17,6 +17,12 @@ A lightweight HTTP server written in pure C, supporting Windows platform. This p
 - ✅ **Thread pool support** - Uses thread pool to handle concurrent requests, improving performance
 - ✅ **UTF-8 file path support** - Supports file paths with non-ASCII characters
 - ✅ **CORS support** - Can optionally enable Cross-Origin Resource Sharing
+- ✅ **File caching** - LRU cache strategy, max 100 items, max 10MB cache space
+- ✅ **Range request support** - Supports HTTP Range requests for video playback and resume downloads
+- ✅ **Index file support** - Auto-detects index.html, index.htm, index.php, default.html, default.htm
+- ✅ **Cache control** - Default cache time 3600 seconds
+- ✅ **Connection timeout** - Default connection timeout 120 seconds
+- ✅ **Colored terminal output** - Supports colored log output for easier debugging
 
 ## System Requirements
 
@@ -37,7 +43,7 @@ Use the provided build script:
 Or compile manually:
 
 ```bash
-gcc -o http-server.exe main.c src\server.c src\http_handler.c src\http_response.c src\file_handler.c src\utils.c -lws2_32 -liphlpapi
+gcc -o http-server.exe main.c src\server.c src\http_handler.c src\http_response.c src\file_handler.c src\utils.c src\config.c -lws2_32 -liphlpapi
 ```
 
 ### 2. Run the server
@@ -139,8 +145,6 @@ http-server/
 ├── README.md                 # Project documentation
 ├── README_zh.md              # Chinese project documentation
 ├── .gitignore                # Git ignore file
-├── OPTIMIZATION.md           # Optimization documentation
-├── config.json               # Configuration file
 ├── test/                     # Test directory
 │   ├── www/                  # Test website files
 │   │   ├── 0.png             # Test image
@@ -167,12 +171,15 @@ http-server/
 - Global configuration management
 - Command line parameter parsing
 - Configuration default value setting
+- Index file configuration (index.html, index.htm, index.php, default.html, default.htm)
 
 ### server.h / server.c
 - Server configuration and constant definitions
 - Socket creation and server running logic
 - Thread pool management and concurrent processing
 - Default port: 80, buffer size: 8192 bytes
+- Default max threads: 10, max queue length: 50
+- Cache time: 3600 seconds, connection timeout: 120 seconds
 
 ### http_handler.h / http_handler.c
 - HTTP request parsing and handling
@@ -188,6 +195,9 @@ http-server/
 - File content sending
 - Directory listing generation
 - File operation handling
+- File cache management (LRU strategy)
+- Range request support
+- Default cache config: max 100 items, max 10MB
 
 ### utils.h / utils.c
 - MIME type detection
@@ -195,6 +205,8 @@ http-server/
 - Directory checking
 - File size formatting
 - URL decoding functionality
+- Timestamp generation
+- Colored terminal output
 
 ## License
 
@@ -207,10 +219,11 @@ Welcome to submit Issues and Pull Requests to improve this project.
 ## Known Limitations
 
 - Only supports Windows platform
-- Does not support HTTPS
-- Does not support HTTP/2
-- Only supports GET request method
-- Limited concurrent connection handling capability
+- Does not support HTTPS/SSL encryption
+- Does not support HTTP/2 protocol
+- Does not support WebSocket protocol
+- Does not support HTTP basic authentication
+- Does not support Gzip compression
 
 ---
 
