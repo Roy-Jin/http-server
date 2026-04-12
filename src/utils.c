@@ -1,7 +1,9 @@
 #include "utils.h"
+#include "config.h"
 #include <stdio.h>
 #include <string.h>
 #include <iphlpapi.h>
+#include <time.h>
 
 #pragma comment(lib, "iphlpapi.lib")
 
@@ -127,19 +129,16 @@ void print_local_ips(void) {
     IP_ADAPTER_ADDRESSES *adapterAddresses = (IP_ADAPTER_ADDRESSES *)malloc(outBufLen);
 
     if (adapterAddresses == NULL) {
-        printf("Error: Memory allocation failed\n");
+        printf(ERROR_COLOR "Error: Memory allocation failed" COLOR_RESET "\n");
         return;
     }
 
     DWORD dwRetVal = GetAdaptersAddresses(AF_INET, GAA_FLAG_INCLUDE_PREFIX | GAA_FLAG_SKIP_MULTICAST, NULL, adapterAddresses, &outBufLen);
 
     if (dwRetVal == NO_ERROR) {
-        printf("==========================================\n");
-        printf("  HTTP Server Started\n");
-        printf("  Local IP Addresses:\n");
+        printf(HEADER_COLOR "Available on:\n" COLOR_RESET);
 
         IP_ADAPTER_ADDRESSES *adapter = adapterAddresses;
-        int ipCount = 0;
 
         while (adapter) {
             if (adapter->OperStatus == IfOperStatusUp) {
@@ -152,8 +151,7 @@ void print_local_ips(void) {
                         inet_ntop(AF_INET, &(sa->sin_addr), ipStr, INET_ADDRSTRLEN);
 
                         if (strcmp(ipStr, "127.0.0.1") != 0) {
-                            printf("   - %s\n", ipStr);
-                            ipCount++;
+                            printf(INFO_COLOR "  http://%s:%d\n" COLOR_RESET, ipStr, g_config.port);
                         }
                     }
                     unicast = unicast->Next;
@@ -162,12 +160,9 @@ void print_local_ips(void) {
             adapter = adapter->Next;
         }
 
-        if (ipCount == 0) {
-            printf("   - (No active network interfaces found)\n");
-        }
-        printf("==========================================\n");
+        printf(INFO_COLOR "  http://127.0.0.1:%d\n" COLOR_RESET, g_config.port);
     } else {
-        printf("Error: GetAdaptersAddresses failed with error: %d\n", dwRetVal);
+        printf(ERROR_COLOR "Error: GetAdaptersAddresses failed with error: %d" COLOR_RESET "\n", dwRetVal);
     }
 
     free(adapterAddresses);
@@ -216,4 +211,13 @@ void url_decode(const char *encoded, char *decoded, size_t max_len) {
         }
     }
     decoded[j] = '\0';
+}
+
+// 获取当前时间戳字符串
+const char* get_timestamp(void) {
+    static char buffer[32];
+    time_t now = time(NULL);
+    struct tm* tm_info = localtime(&now);
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", tm_info);
+    return buffer;
 }

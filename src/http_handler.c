@@ -170,6 +170,9 @@ void handle_request(SOCKET client, const char* request) {
         send_404(client);
         return;
     }
+    
+    // 记录请求日志
+    printf("[%s] %s %s\n", get_timestamp(), method, uri);
 
     // 验证请求
     if (!validate_request(method, uri)) {

@@ -1,4 +1,5 @@
 #include "http_response.h"
+#include "config.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -19,7 +20,7 @@ void send_header(SOCKET client, int status_code, const char* status_text,
         "Content-Type: %s\r\n"
         "Content-Length: %ld\r\n"
         "Connection: close\r\n"
-        "Server: http-server/1.0\r\n"
+        "Server: " SERVER_NAME "/" SERVER_VERSION "\r\n"
         "Cache-Control: max-age=3600\r\n"
         "ETag: %s\r\n"
         "Access-Control-Allow-Origin: *\r\n"

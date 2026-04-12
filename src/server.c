@@ -47,7 +47,7 @@ ThreadPool* create_thread_pool() {
     // 分配线程池内存
     ThreadPool* pool = (ThreadPool*)malloc(sizeof(ThreadPool));
     if (!pool) {
-        printf("Error: Failed to allocate memory for thread pool.\n");
+        printf(ERROR_COLOR "Error: Failed to allocate memory for thread pool." COLOR_RESET "\n");
         return NULL;
     }
 
@@ -59,7 +59,7 @@ ThreadPool* create_thread_pool() {
     // 创建互斥锁
     pool->mutex = CreateMutex(NULL, FALSE, NULL);
     if (!pool->mutex) {
-        printf("Error: Failed to create mutex: %d\n", GetLastError());
+        printf(ERROR_COLOR "Error: Failed to create mutex: %d" COLOR_RESET "\n", GetLastError());
         free(pool);
         return NULL;
     }
@@ -67,7 +67,7 @@ ThreadPool* create_thread_pool() {
     // 创建信号量
     pool->semaphore = CreateSemaphore(NULL, 0, g_config.max_queue, NULL);
     if (!pool->semaphore) {
-        printf("Error: Failed to create semaphore: %d\n", GetLastError());
+        printf(ERROR_COLOR "Error: Failed to create semaphore: %d" COLOR_RESET "\n", GetLastError());
         CloseHandle(pool->mutex);
         free(pool);
         return NULL;
@@ -77,7 +77,7 @@ ThreadPool* create_thread_pool() {
     for (int i = 0; i < g_config.max_threads; i++) {
         pool->threads[i] = CreateThread(NULL, 0, thread_function, pool, 0, NULL);
         if (!pool->threads[i]) {
-            printf("Error: Failed to create thread %d: %d\n", i, GetLastError());
+            printf(ERROR_COLOR "Error: Failed to create thread %d: %d" COLOR_RESET "\n", i, GetLastError());
             
             // 清理已创建的线程
             for (int j = 0; j < i; j++) {
@@ -151,13 +151,13 @@ void add_task(ThreadPool* pool, SOCKET clientSocket, struct sockaddr_in clientAd
 SOCKET create_server_socket(int port) {
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        printf("Error: WSAStartup failed.\n");
+        printf(ERROR_COLOR "Error: WSAStartup failed." COLOR_RESET "\n");
         return INVALID_SOCKET;
     }
 
     SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket == INVALID_SOCKET) {
-        printf("Error: Socket creation failed: %d\n", WSAGetLastError());
+        printf(ERROR_COLOR "Error: Socket creation failed: %d" COLOR_RESET "\n", WSAGetLastError());
         WSACleanup();
         return INVALID_SOCKET;
     }
@@ -171,14 +171,14 @@ SOCKET create_server_socket(int port) {
     serverAddr.sin_port = htons(port);
 
     if (bind(serverSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
-        printf("Error: Bind failed: %d\n", WSAGetLastError());
+        printf(ERROR_COLOR "Error: Bind failed: %d" COLOR_RESET "\n", WSAGetLastError());
         closesocket(serverSocket);
         WSACleanup();
         return INVALID_SOCKET;
     }
 
     if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) {
-        printf("Error: Listen failed: %d\n", WSAGetLastError());
+        printf(ERROR_COLOR "Error: Listen failed: %d" COLOR_RESET "\n", WSAGetLastError());
         closesocket(serverSocket);
         WSACleanup();
         return INVALID_SOCKET;
@@ -189,14 +189,12 @@ SOCKET create_server_socket(int port) {
 
 void run_server(SOCKET serverSocket, int port) {
     print_local_ips();
-    printf("  Port: %d\n", port);
-    printf("  Access: http://0.0.0.0:%d\n", port);
-    printf("  Press Ctrl+C to stop.\n\n");
+    printf(HEADER_COLOR "Hit CTRL-C to stop the server\n\n" COLOR_RESET);
 
     // 创建线程池
     ThreadPool* pool = create_thread_pool();
     if (!pool) {
-        printf("Error: Failed to create thread pool.\n");
+        printf(ERROR_COLOR "Error: Failed to create thread pool." COLOR_RESET "\n");
         return;
     }
 

@@ -1,5 +1,6 @@
 #include "config.h"
 #include "server.h"
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,14 +19,15 @@ Config g_config = {
 
 // 显示当前配置
 void config_show() {
-    printf("\n=== Server Configuration ===\n");
-    printf("Port: %d\n", g_config.port);
-    printf("Root Directory: %s\n", g_config.root_dir);
-    printf("Directory Listing: %s\n", g_config.directory_listing ? "Enabled" : "Disabled");
-    printf("Max Threads: %d\n", g_config.max_threads);
-    printf("Max Queue: %d\n", g_config.max_queue);
-    printf("Enable CORS: %s", g_config.enable_cors ? "Yes" : "No");
-    printf("\n===========================\n\n");
+    printf("\n" HEADER_COLOR "Starting up " SERVER_NAME ", serving %s" COLOR_RESET "\n\n", g_config.root_dir);
+    printf(INFO_COLOR SERVER_NAME " version: " SERVER_VERSION "\n\n" COLOR_RESET);
+    printf(HEADER_COLOR SERVER_NAME " settings:" COLOR_RESET "\n");
+    printf(INFO_COLOR "CORS: " VALUE_COLOR "%s\n" COLOR_RESET, g_config.enable_cors ? "enabled" : "disabled");
+    printf(INFO_COLOR "Cache: " VALUE_COLOR "3600 seconds\n" COLOR_RESET);
+    printf(INFO_COLOR "Connection Timeout: " VALUE_COLOR "120 seconds\n" COLOR_RESET);
+    printf(INFO_COLOR "Directory Listings: " VALUE_COLOR "%s\n" COLOR_RESET, g_config.directory_listing ? "visible" : "hidden");
+    printf(INFO_COLOR "Max Threads: " VALUE_COLOR "%d\n" COLOR_RESET, g_config.max_threads);
+    printf(INFO_COLOR "Max Queue: " VALUE_COLOR "%d\n\n" COLOR_RESET, g_config.max_queue);
 }
 
 // 配置初始化

@@ -4,6 +4,10 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+// 版本号定义
+#define SERVER_VERSION "2.0"
+#define SERVER_NAME "http-server"
+
 // 配置结构体
 typedef struct {
     int port;               // 服务器端口
