@@ -35,7 +35,7 @@ void send_directory_listing(SOCKET client, const char* dir_path, const char* req
     wchar_t searchPath[PATH_MAX_LEN];
     char* html = NULL;
     size_t html_size = 0;
-    size_t html_capacity = 8192;
+    size_t html_capacity = 32768; // 增加初始缓冲区大小，减少realloc次数
     
     // 将窄字符路径转换为宽字符
     MultiByteToWideChar(CP_UTF8, 0, dir_path, -1, searchPath, PATH_MAX_LEN);
@@ -47,6 +47,7 @@ void send_directory_listing(SOCKET client, const char* dir_path, const char* req
         return;
     }
     
+    // 预分配足够大的缓冲区
     html = (char*)malloc(html_capacity);
     if (!html) {
         FindClose(hFind);
@@ -54,6 +55,7 @@ void send_directory_listing(SOCKET client, const char* dir_path, const char* req
         return;
     }
     
+    // 使用snprintf直接写入缓冲区，避免字符串复制
     int len = snprintf(html, html_capacity,
         "<!DOCTYPE html>\n"
         "<html lang=\"en\">\n"
@@ -220,8 +222,11 @@ void send_directory_listing(SOCKET client, const char* dir_path, const char* req
     if (strcmp(request_uri, "/") != 0) {
         const char* parent_link = "<tr><td class=\"name-cell\"><span class=\"icon parent-icon\">↩</span><span class=\"parent-link\" data-path=\"../\">Parent Directory</span></td><td class=\"type\">&lt;dir&gt;</td></tr>\n";
         size_t add_len = strlen(parent_link);
+        
+        // 检查缓冲区大小并按需扩展
         if (html_size + add_len + 1 > html_capacity) {
-            html_capacity = html_size + add_len + 1024;
+            // 一次性扩展更大的空间，减少后续realloc
+            html_capacity = html_size + add_len + 16384;
             char* new_html = (char*)realloc(html, html_capacity);
             if (!new_html) {
                 free(html);
@@ -231,7 +236,9 @@ void send_directory_listing(SOCKET client, const char* dir_path, const char* req
             }
             html = new_html;
         }
-        strcpy(html + html_size, parent_link);
+        
+        // 直接使用memcpy复制字符串，提高效率
+        memcpy(html + html_size, parent_link, add_len);
         html_size += add_len;
     }
     
@@ -239,25 +246,27 @@ void send_directory_listing(SOCKET client, const char* dir_path, const char* req
         if (wcscmp(findData.cFileName, L".") == 0 || wcscmp(findData.cFileName, L"..") == 0)
             continue;
         
-        char entry[PATH_MAX_LEN * 4]; // 增大缓冲区以容纳UTF-8编码
         char fileName[PATH_MAX_LEN];
         wchar_to_utf8(findData.cFileName, fileName, sizeof(fileName));
         
         int isDir = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+        
+        // 计算所需空间，避免频繁realloc
+        size_t needed_space;
         if (isDir) {
-            sprintf(entry, "<tr><td class=\"name-cell\"><span class=\"icon folder-icon\">📁</span><span class=\"dir-link\" data-path=\"%s/\">%s/</span></td><td class=\"type\">&lt;dir&gt;</td></tr>\n",
-                    fileName, fileName);
+            needed_space = strlen(fileName) * 2 + 100; // 估算目录项所需空间
         } else {
             LARGE_INTEGER fileSize;
             fileSize.LowPart = findData.nFileSizeLow;
             fileSize.HighPart = findData.nFileSizeHigh;
-            sprintf(entry, "<tr><td class=\"name-cell\"><span class=\"icon file-icon\">📄</span><span class=\"file-link\" data-path=\"%s\">%s</span></td><td class=\"size\">%s</td></tr>\n",
-                    fileName, fileName, format_file_size(fileSize.QuadPart));
+            const char* size_str = format_file_size(fileSize.QuadPart);
+            needed_space = strlen(fileName) * 2 + strlen(size_str) + 100; // 估算文件项所需空间
         }
         
-        size_t add_len = strlen(entry);
-        if (html_size + add_len + 1 > html_capacity) {
-            html_capacity = html_size + add_len + 1024;
+        // 检查缓冲区大小并按需扩展
+        if (html_size + needed_space + 1 > html_capacity) {
+            // 一次性扩展更大的空间，减少后续realloc
+            html_capacity = html_size + needed_space + 16384;
             char* new_html = (char*)realloc(html, html_capacity);
             if (!new_html) {
                 free(html);
@@ -267,8 +276,20 @@ void send_directory_listing(SOCKET client, const char* dir_path, const char* req
             }
             html = new_html;
         }
-        strcpy(html + html_size, entry);
-        html_size += add_len;
+        
+        // 直接写入缓冲区，避免中间缓冲区
+        if (isDir) {
+            html_size += snprintf(html + html_size, html_capacity - html_size,
+                "<tr><td class=\"name-cell\"><span class=\"icon folder-icon\">📁</span><span class=\"dir-link\" data-path=\"%s/\">%s/</span></td><td class=\"type\">&lt;dir&gt;</td></tr>\n",
+                fileName, fileName);
+        } else {
+            LARGE_INTEGER fileSize;
+            fileSize.LowPart = findData.nFileSizeLow;
+            fileSize.HighPart = findData.nFileSizeHigh;
+            html_size += snprintf(html + html_size, html_capacity - html_size,
+                "<tr><td class=\"name-cell\"><span class=\"icon file-icon\">📄</span><span class=\"file-link\" data-path=\"%s\">%s</span></td><td class=\"size\">%s</td></tr>\n",
+                fileName, fileName, format_file_size(fileSize.QuadPart));
+        }
         
     } while (FindNextFileW(hFind, &findData));
     
@@ -302,6 +323,8 @@ void send_directory_listing(SOCKET client, const char* dir_path, const char* req
         "</html>";
     
     size_t footer_len = strlen(footer_and_script);
+    
+    // 检查缓冲区大小并按需扩展
     if (html_size + footer_len + 1 > html_capacity) {
         html_capacity = html_size + footer_len + 1;
         char* new_html = (char*)realloc(html, html_capacity);
@@ -312,7 +335,9 @@ void send_directory_listing(SOCKET client, const char* dir_path, const char* req
         }
         html = new_html;
     }
-    strcpy(html + html_size, footer_and_script);
+    
+    // 直接使用memcpy复制字符串，提高效率
+    memcpy(html + html_size, footer_and_script, footer_len);
     html_size += footer_len;
     
     send_header(client, 200, "OK", "text/html; charset=utf-8", (long)html_size);
