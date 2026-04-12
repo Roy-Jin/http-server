@@ -20,49 +20,34 @@ FILE* fopen_utf8(const char* path, const char* mode) {
     return _wfopen(wpath, wmode);
 }
 
-void handle_request(SOCKET client, const char* request) {
-    char method[16], uri[PATH_MAX_LEN], protocol[16];
+// 解析HTTP请求行
+int parse_http_request(const char* request, char* method, char* uri, char* protocol) {
+    return sscanf(request, "%s %s %s", method, uri, protocol) == 3;
+}
+
+// 验证请求合法性
+int validate_request(const char* method, const char* uri) {
+    // 只支持GET方法
+    if (strcmp(method, "GET") != 0) {
+        return 0;
+    }
+    
+    // 防止路径遍历攻击
+    if (strstr(uri, "..") != NULL) {
+        return 0;
+    }
+    
+    return 1;
+}
+
+// 处理索引文件查找
+int handle_index_files(SOCKET client, const char* root_dir) {
     char local_path[PATH_MAX_LEN];
     
-    if (sscanf(request, "%s %s %s", method, uri, protocol) != 3) {
-        send_404(client);
-        return;
-    }
-
-    if (strcmp(method, "GET") != 0) {
-        send_404(client);
-        return;
-    }
-
-    if (strstr(uri, "..") != NULL) {
-        send_404(client);
-        return;
-    }
-
-    char decoded_uri[PATH_MAX_LEN];
-    url_decode(uri, decoded_uri, sizeof(decoded_uri));
-    
-    // 构建本地路径，使用配置中的根目录
-    if (strcmp(decoded_uri, "/") == 0) {
-        // 尝试查找索引文件
-        for (int i = 0; i < 5 && g_config.index_files[i][0]; i++) {
-            sprintf(local_path, "%s/%s", g_config.root_dir, g_config.index_files[i]);
-            FILE* file = fopen_utf8(local_path, "rb");
-            if (file) {
-                fseek(file, 0, SEEK_END);
-                long file_size = ftell(file);
-                rewind(file);
-
-                const char* mime = get_mime_type(local_path);
-                send_file_content(client, file, mime, file_size);
-                fclose(file);
-                return;
-            }
-        }
-    } else {
-        sprintf(local_path, "%s%s", g_config.root_dir, decoded_uri);
+    // 尝试查找索引文件
+    for (int i = 0; i < 5 && g_config.index_files[i][0]; i++) {
+        sprintf(local_path, "%s/%s", root_dir, g_config.index_files[i]);
         FILE* file = fopen_utf8(local_path, "rb");
-        
         if (file) {
             fseek(file, 0, SEEK_END);
             long file_size = ftell(file);
@@ -71,13 +56,89 @@ void handle_request(SOCKET client, const char* request) {
             const char* mime = get_mime_type(local_path);
             send_file_content(client, file, mime, file_size);
             fclose(file);
-            return;
+            return 1;
         }
     }
     
-    // 文件不存在，检查目录情况
+    return 0;
+}
+
+// 处理文件请求
+int handle_file_request(SOCKET client, const char* root_dir, const char* decoded_uri) {
+    char local_path[PATH_MAX_LEN];
+    
+    sprintf(local_path, "%s%s", root_dir, decoded_uri);
+    FILE* file = fopen_utf8(local_path, "rb");
+    
+    if (file) {
+        fseek(file, 0, SEEK_END);
+        long file_size = ftell(file);
+        rewind(file);
+
+        const char* mime = get_mime_type(local_path);
+        send_file_content(client, file, mime, file_size);
+        fclose(file);
+        return 1;
+    }
+    
+    return 0;
+}
+
+// 处理目录请求
+int handle_directory_request(SOCKET client, const char* root_dir, const char* decoded_uri) {
+    char dir_path[PATH_MAX_LEN];
+    sprintf(dir_path, "%s%s", root_dir, decoded_uri);
+    
+    if (is_directory(dir_path)) {
+        size_t uri_len = strlen(decoded_uri);
+        if (decoded_uri[uri_len-1] != '/') {
+            // 重定向到带斜杠的URL
+            char redirect_uri[PATH_MAX_LEN];
+            sprintf(redirect_uri, "%s/", decoded_uri);
+            send_redirect(client, redirect_uri);
+            return 1;
+        } else {
+            // 显示目录列表
+            if (g_config.directory_listing) {
+                send_directory_listing(client, dir_path, decoded_uri);
+                return 1;
+            } else {
+                send_404(client);
+                return 1;
+            }
+        }
+    }
+    
+    return 0;
+}
+
+void handle_request(SOCKET client, const char* request) {
+    char method[16], uri[PATH_MAX_LEN], protocol[16];
+    
+    // 解析请求
+    if (!parse_http_request(request, method, uri, protocol)) {
+        send_404(client);
+        return;
+    }
+
+    // 验证请求
+    if (!validate_request(method, uri)) {
+        send_404(client);
+        return;
+    }
+
+    // URL解码
+    char decoded_uri[PATH_MAX_LEN];
+    url_decode(uri, decoded_uri, sizeof(decoded_uri));
+    
+    // 处理根目录请求
     if (strcmp(decoded_uri, "/") == 0) {
-        // 根目录且索引文件不存在
+        // 尝试处理索引文件
+        if (handle_index_files(client, g_config.root_dir)) {
+            return;
+        }
+        
+        // 索引文件不存在，检查是否为目录
         if (is_directory(g_config.root_dir)) {
             if (g_config.directory_listing) {
                 send_directory_listing(client, g_config.root_dir, "/");
@@ -88,25 +149,14 @@ void handle_request(SOCKET client, const char* request) {
             }
         }
     } else {
-        char dir_path[PATH_MAX_LEN];
-        sprintf(dir_path, "%s%s", g_config.root_dir, decoded_uri);
+        // 处理非根目录请求
+        if (handle_file_request(client, g_config.root_dir, decoded_uri)) {
+            return;
+        }
         
-        if (is_directory(dir_path)) {
-            size_t uri_len = strlen(decoded_uri);
-            if (decoded_uri[uri_len-1] != '/') {
-                char redirect_uri[PATH_MAX_LEN];
-                sprintf(redirect_uri, "%s/", decoded_uri);
-                send_redirect(client, redirect_uri);
-                return;
-            } else {
-                if (g_config.directory_listing) {
-                    send_directory_listing(client, dir_path, decoded_uri);
-                    return;
-                } else {
-                    send_404(client);
-                    return;
-                }
-            }
+        // 文件不存在，检查是否为目录
+        if (handle_directory_request(client, g_config.root_dir, decoded_uri)) {
+            return;
         }
     }
     

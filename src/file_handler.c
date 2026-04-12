@@ -5,14 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-void send_file_content(SOCKET client, FILE *file, const char *mime_type, long file_size)
-{
+void send_file_content(SOCKET client, FILE *file, const char *mime_type, long file_size) {
     send_header(client, 200, "OK", mime_type, file_size);
 
     char buffer[BUFFER_SIZE];
     size_t bytes_read;
-    while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, file)) > 0)
-    {
+    while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, file)) > 0) {
         send(client, buffer, (int)bytes_read, 0);
     }
 }

@@ -7,13 +7,13 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
-// 线程函数
+// 线程函数，处理客户端请求
 DWORD WINAPI thread_function(LPVOID lpParam) {
     ThreadPool* pool = (ThreadPool*)lpParam;
     char buffer[BUFFER_SIZE];
 
     while (1) {
-        // 等待信号量
+        // 等待信号量，获取任务
         WaitForSingleObject(pool->semaphore, INFINITE);
 
         // 检查是否需要关闭
@@ -35,6 +35,7 @@ DWORD WINAPI thread_function(LPVOID lpParam) {
             handle_request(task.clientSocket, buffer);
         }
 
+        // 关闭客户端连接
         closesocket(task.clientSocket);
     }
 
@@ -43,11 +44,14 @@ DWORD WINAPI thread_function(LPVOID lpParam) {
 
 // 创建线程池
 ThreadPool* create_thread_pool() {
+    // 分配线程池内存
     ThreadPool* pool = (ThreadPool*)malloc(sizeof(ThreadPool));
     if (!pool) {
+        printf("Error: Failed to allocate memory for thread pool.\n");
         return NULL;
     }
 
+    // 初始化线程池结构
     pool->front = 0;
     pool->rear = 0;
     pool->shutdown = 0;
@@ -55,6 +59,7 @@ ThreadPool* create_thread_pool() {
     // 创建互斥锁
     pool->mutex = CreateMutex(NULL, FALSE, NULL);
     if (!pool->mutex) {
+        printf("Error: Failed to create mutex: %d\n", GetLastError());
         free(pool);
         return NULL;
     }
@@ -62,19 +67,24 @@ ThreadPool* create_thread_pool() {
     // 创建信号量
     pool->semaphore = CreateSemaphore(NULL, 0, g_config.max_queue, NULL);
     if (!pool->semaphore) {
+        printf("Error: Failed to create semaphore: %d\n", GetLastError());
         CloseHandle(pool->mutex);
         free(pool);
         return NULL;
     }
 
-    // 创建线程
+    // 创建工作线程
     for (int i = 0; i < g_config.max_threads; i++) {
         pool->threads[i] = CreateThread(NULL, 0, thread_function, pool, 0, NULL);
         if (!pool->threads[i]) {
+            printf("Error: Failed to create thread %d: %d\n", i, GetLastError());
+            
             // 清理已创建的线程
             for (int j = 0; j < i; j++) {
                 CloseHandle(pool->threads[j]);
             }
+            
+            // 清理资源
             CloseHandle(pool->mutex);
             CloseHandle(pool->semaphore);
             free(pool);
@@ -132,6 +142,8 @@ void add_task(ThreadPool* pool, SOCKET clientSocket, struct sockaddr_in clientAd
     pool->rear = next;
 
     ReleaseMutex(pool->mutex);
+    
+    // 信号通知线程有新任务
     ReleaseSemaphore(pool->semaphore, 1, NULL);
 }
 
