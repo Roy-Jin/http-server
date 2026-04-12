@@ -2,6 +2,7 @@
 #include "http_response.h"
 #include "file_handler.h"
 #include "utils.h"
+#include "config.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -41,35 +42,54 @@ void handle_request(SOCKET client, const char* request) {
     char decoded_uri[PATH_MAX_LEN];
     url_decode(uri, decoded_uri, sizeof(decoded_uri));
     
+    // 构建本地路径，使用配置中的根目录
     if (strcmp(decoded_uri, "/") == 0) {
-        strcpy(local_path, "./index.html");
+        // 尝试查找索引文件
+        for (int i = 0; i < 5 && g_config.index_files[i][0]; i++) {
+            sprintf(local_path, "%s/%s", g_config.root_dir, g_config.index_files[i]);
+            FILE* file = fopen_utf8(local_path, "rb");
+            if (file) {
+                fseek(file, 0, SEEK_END);
+                long file_size = ftell(file);
+                rewind(file);
+
+                const char* mime = get_mime_type(local_path);
+                send_file_content(client, file, mime, file_size);
+                fclose(file);
+                return;
+            }
+        }
     } else {
-        sprintf(local_path, ".%s", decoded_uri);
-    }
+        sprintf(local_path, "%s%s", g_config.root_dir, decoded_uri);
+        FILE* file = fopen_utf8(local_path, "rb");
+        
+        if (file) {
+            fseek(file, 0, SEEK_END);
+            long file_size = ftell(file);
+            rewind(file);
 
-    FILE* file = fopen_utf8(local_path, "rb");
-    
-    if (file) {
-        fseek(file, 0, SEEK_END);
-        long file_size = ftell(file);
-        rewind(file);
-
-        const char* mime = get_mime_type(local_path);
-        send_file_content(client, file, mime, file_size);
-        fclose(file);
-        return;
+            const char* mime = get_mime_type(local_path);
+            send_file_content(client, file, mime, file_size);
+            fclose(file);
+            return;
+        }
     }
     
     // 文件不存在，检查目录情况
     if (strcmp(decoded_uri, "/") == 0) {
-        // 根目录且 index.html 不存在
-        if (is_directory("./")) {
-            send_directory_listing(client, ".", "/");
-            return;
+        // 根目录且索引文件不存在
+        if (is_directory(g_config.root_dir)) {
+            if (g_config.directory_listing) {
+                send_directory_listing(client, g_config.root_dir, "/");
+                return;
+            } else {
+                send_404(client);
+                return;
+            }
         }
     } else {
         char dir_path[PATH_MAX_LEN];
-        sprintf(dir_path, ".%s", decoded_uri);
+        sprintf(dir_path, "%s%s", g_config.root_dir, decoded_uri);
         
         if (is_directory(dir_path)) {
             size_t uri_len = strlen(decoded_uri);
@@ -79,8 +99,13 @@ void handle_request(SOCKET client, const char* request) {
                 send_redirect(client, redirect_uri);
                 return;
             } else {
-                send_directory_listing(client, dir_path, decoded_uri);
-                return;
+                if (g_config.directory_listing) {
+                    send_directory_listing(client, dir_path, decoded_uri);
+                    return;
+                } else {
+                    send_404(client);
+                    return;
+                }
             }
         }
     }

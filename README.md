@@ -14,6 +14,9 @@ A lightweight HTTP server written in pure C, supporting Windows platform. This p
 - ✅ **Local IP display** - Shows all available local IPv4 addresses on startup
 - ✅ **HTTP status codes** - Supports standard HTTP status codes like 200, 404
 - ✅ **Redirect support** - Supports HTTP redirect functionality
+- ✅ **Thread pool support** - Uses thread pool to handle concurrent requests, improving performance
+- ✅ **UTF-8 file path support** - Supports file paths with non-ASCII characters
+- ✅ **CORS support** - Can optionally enable Cross-Origin Resource Sharing
 
 ## System Requirements
 
@@ -69,7 +72,7 @@ http://192.168.x.x:80
 
 ### Basic Usage
 
-1. Run the server: `.\http-server.exe`
+1. Run the server: `./http-server.exe`
 2. Access in browser: `http://localhost`
 
 ### Command Line Parameters
@@ -81,12 +84,42 @@ http://192.168.x.x:80
 # Use specified port
 .\http-server.exe 8080
 .\http-server.exe 3000
+
+# Specify root directory
+.\http-server.exe --root D:\www
+
+# Disable directory listing
+.\http-server.exe --no-directory-listing
+
+# Set maximum threads
+.\http-server.exe --max-threads 20
+
+# Set maximum queue length
+.\http-server.exe --max-queue 100
+
+# Enable CORS
+.\http-server.exe --enable-cors
+
+# Show help
+.\http-server.exe --help
+.\http-server.exe -h
 ```
+
+### Full Command Line Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--port <port>` | Set server port | 80 |
+| `--root <directory>` | Set root directory | . |
+| `--no-directory-listing` | Disable directory listing | Enabled |
+| `--max-threads <n>` | Set maximum number of threads | 10 |
+| `--max-queue <n>` | Set maximum queue length | 50 |
+| `--enable-cors` | Enable CORS | Disabled |
+| `--help, -h` | Show this help message | - |
 
 ### Supported HTTP Methods
 
 - `GET` - Get file or directory listing
-- `HEAD` - Get response header information
 
 ### Supported File Types
 
@@ -104,30 +137,47 @@ http-server/
 ├── build.bat                 # Build script
 ├── LICENSE                   # MIT License
 ├── README.md                 # Project documentation
-├── .gitignore               # Git ignore file
+├── README_zh.md              # Chinese project documentation
+├── .gitignore                # Git ignore file
+├── OPTIMIZATION.md           # Optimization documentation
+├── config.json               # Configuration file
+├── test/                     # Test directory
+│   ├── www/                  # Test website files
+│   │   ├── 0.png             # Test image
+│   │   └── index.html        # Test home page
+│   └── 0.txt                 # Test text file
 └── src/                      # Source code directory
-    ├── server.h             # Server configuration and constants
-    ├── server.c             # Server core logic
-    ├── http_handler.h       # HTTP request handling
-    ├── http_handler.c       # HTTP request handling implementation
-    ├── http_response.h      # HTTP response generation
-    ├── http_response.c      # HTTP response implementation
-    ├── file_handler.h       # File handling
-    ├── file_handler.c       # File handling implementation
-    ├── utils.h              # Utility functions
-    └── utils.c              # Utility functions implementation
+    ├── config.h              # Configuration header file
+    ├── config.c              # Configuration implementation
+    ├── server.h              # Server configuration and constants
+    ├── server.c              # Server core logic
+    ├── http_handler.h        # HTTP request handling
+    ├── http_handler.c        # HTTP request handling implementation
+    ├── http_response.h       # HTTP response generation
+    ├── http_response.c       # HTTP response implementation
+    ├── file_handler.h        # File handling
+    ├── file_handler.c        # File handling implementation
+    ├── utils.h               # Utility functions
+    └── utils.c               # Utility functions implementation
 ```
 
 ## Code Module Description
 
+### config.h / config.c
+- Global configuration management
+- Command line parameter parsing
+- Configuration default value setting
+
 ### server.h / server.c
 - Server configuration and constant definitions
 - Socket creation and server running logic
+- Thread pool management and concurrent processing
 - Default port: 80, buffer size: 8192 bytes
 
 ### http_handler.h / http_handler.c
 - HTTP request parsing and handling
 - Request method validation and routing
+- UTF-8 file path handling
 
 ### http_response.h / http_response.c
 - HTTP response header generation
@@ -144,6 +194,7 @@ http-server/
 - Local IP address retrieval
 - Directory checking
 - File size formatting
+- URL decoding functionality
 
 ## License
 
@@ -158,6 +209,7 @@ Welcome to submit Issues and Pull Requests to improve this project.
 - Only supports Windows platform
 - Does not support HTTPS
 - Does not support HTTP/2
+- Only supports GET request method
 - Limited concurrent connection handling capability
 
 ---

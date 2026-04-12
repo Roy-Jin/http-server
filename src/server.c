@@ -1,6 +1,7 @@
 #include "server.h"
 #include "http_handler.h"
 #include "utils.h"
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -23,7 +24,7 @@ DWORD WINAPI thread_function(LPVOID lpParam) {
         // 加锁获取任务
         WaitForSingleObject(pool->mutex, INFINITE);
         Task task = pool->queue[pool->front];
-        pool->front = (pool->front + 1) % MAX_QUEUE;
+        pool->front = (pool->front + 1) % g_config.max_queue;
         ReleaseMutex(pool->mutex);
 
         // 处理请求
@@ -59,7 +60,7 @@ ThreadPool* create_thread_pool() {
     }
 
     // 创建信号量
-    pool->semaphore = CreateSemaphore(NULL, 0, MAX_QUEUE, NULL);
+    pool->semaphore = CreateSemaphore(NULL, 0, g_config.max_queue, NULL);
     if (!pool->semaphore) {
         CloseHandle(pool->mutex);
         free(pool);
@@ -67,7 +68,7 @@ ThreadPool* create_thread_pool() {
     }
 
     // 创建线程
-    for (int i = 0; i < MAX_THREADS; i++) {
+    for (int i = 0; i < g_config.max_threads; i++) {
         pool->threads[i] = CreateThread(NULL, 0, thread_function, pool, 0, NULL);
         if (!pool->threads[i]) {
             // 清理已创建的线程
@@ -96,12 +97,12 @@ void destroy_thread_pool(ThreadPool* pool) {
     ReleaseMutex(pool->mutex);
 
     // 唤醒所有线程
-    for (int i = 0; i < MAX_THREADS; i++) {
+    for (int i = 0; i < g_config.max_threads; i++) {
         ReleaseSemaphore(pool->semaphore, 1, NULL);
     }
 
     // 等待所有线程结束
-    for (int i = 0; i < MAX_THREADS; i++) {
+    for (int i = 0; i < g_config.max_threads; i++) {
         WaitForSingleObject(pool->threads[i], INFINITE);
         CloseHandle(pool->threads[i]);
     }
@@ -117,7 +118,7 @@ void add_task(ThreadPool* pool, SOCKET clientSocket, struct sockaddr_in clientAd
     WaitForSingleObject(pool->mutex, INFINITE);
     
     // 检查队列是否已满
-    int next = (pool->rear + 1) % MAX_QUEUE;
+    int next = (pool->rear + 1) % g_config.max_queue;
     if (next == pool->front) {
         // 队列已满，关闭连接
         closesocket(clientSocket);
@@ -192,12 +193,10 @@ void run_server(SOCKET serverSocket, int port) {
 
     while (1) {
         SOCKET clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientAddrLen);
-        if (clientSocket == INVALID_SOCKET) {
-            continue;
+        if (clientSocket != INVALID_SOCKET) {
+            // 添加任务到线程池
+            add_task(pool, clientSocket, clientAddr);
         }
-
-        // 添加任务到线程池
-        add_task(pool, clientSocket, clientAddr);
     }
 
     // 销毁线程池（实际上不会执行到这里，因为是无限循环）
