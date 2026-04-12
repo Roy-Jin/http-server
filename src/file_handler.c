@@ -17,17 +17,31 @@ void send_file_content(SOCKET client, FILE *file, const char *mime_type, long fi
     }
 }
 
+// 辅助函数：将宽字符字符串转换为UTF-8字符串
+int wchar_to_utf8(const wchar_t* wstr, char* utf8, size_t max_len) {
+    int len = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, utf8, (int)max_len, NULL, NULL);
+    if (len == 0) {
+        DWORD error = GetLastError();
+        printf("Error in WideCharToMultiByte: %d\n", error);
+        utf8[0] = '\0';
+        return 0;
+    }
+    return len - 1; // 返回实际字符数，不包括终止符
+}
+
 void send_directory_listing(SOCKET client, const char* dir_path, const char* request_uri) {
-    WIN32_FIND_DATAA findData;
+    WIN32_FIND_DATAW findData;
     HANDLE hFind;
-    char searchPath[PATH_MAX_LEN];
+    wchar_t searchPath[PATH_MAX_LEN];
     char* html = NULL;
     size_t html_size = 0;
     size_t html_capacity = 8192;
     
-    sprintf(searchPath, "%s\\*", dir_path);
+    // 将窄字符路径转换为宽字符
+    MultiByteToWideChar(CP_UTF8, 0, dir_path, -1, searchPath, PATH_MAX_LEN);
+    wcscat(searchPath, L"\\*");
     
-    hFind = FindFirstFileA(searchPath, &findData);
+    hFind = FindFirstFileW(searchPath, &findData);
     if (hFind == INVALID_HANDLE_VALUE) {
         send_404(client);
         return;
@@ -222,20 +236,23 @@ void send_directory_listing(SOCKET client, const char* dir_path, const char* req
     }
     
     do {
-        if (strcmp(findData.cFileName, ".") == 0 || strcmp(findData.cFileName, "..") == 0)
+        if (wcscmp(findData.cFileName, L".") == 0 || wcscmp(findData.cFileName, L"..") == 0)
             continue;
         
-        char entry[PATH_MAX_LEN * 2];
+        char entry[PATH_MAX_LEN * 4]; // 增大缓冲区以容纳UTF-8编码
+        char fileName[PATH_MAX_LEN];
+        wchar_to_utf8(findData.cFileName, fileName, sizeof(fileName));
+        
         int isDir = (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
         if (isDir) {
             sprintf(entry, "<tr><td class=\"name-cell\"><span class=\"icon folder-icon\">📁</span><span class=\"dir-link\" data-path=\"%s/\">%s/</span></td><td class=\"type\">&lt;dir&gt;</td></tr>\n",
-                    findData.cFileName, findData.cFileName);
+                    fileName, fileName);
         } else {
             LARGE_INTEGER fileSize;
             fileSize.LowPart = findData.nFileSizeLow;
             fileSize.HighPart = findData.nFileSizeHigh;
             sprintf(entry, "<tr><td class=\"name-cell\"><span class=\"icon file-icon\">📄</span><span class=\"file-link\" data-path=\"%s\">%s</span></td><td class=\"size\">%s</td></tr>\n",
-                    findData.cFileName, findData.cFileName, format_file_size(fileSize.QuadPart));
+                    fileName, fileName, format_file_size(fileSize.QuadPart));
         }
         
         size_t add_len = strlen(entry);
@@ -253,7 +270,7 @@ void send_directory_listing(SOCKET client, const char* dir_path, const char* req
         strcpy(html + html_size, entry);
         html_size += add_len;
         
-    } while (FindNextFileA(hFind, &findData));
+    } while (FindNextFileW(hFind, &findData));
     
     FindClose(hFind);
     

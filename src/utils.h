@@ -15,4 +15,7 @@ int is_directory(const char* path);
 // 格式化文件大小为人类可读的格式 (KB/MB/GB)
 const char* format_file_size(long long bytes);
 
+// URL解码函数，将URL编码的字符串解码为UTF-8字符串
+void url_decode(const char* encoded, char* decoded, size_t max_len);
+
 #endif
