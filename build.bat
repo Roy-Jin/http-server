@@ -4,3 +4,5 @@ gcc -o http-server.exe main.c src\server.c src\http_handler.c src\http_response.
 if %errorlevel% neq 0 exit /b %errorlevel%
 copy /Y http-server.exe test\http-server.exe >nul
 echo Build successful!
+echo Testing version parameter...
+http-server.exe -v

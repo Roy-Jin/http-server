@@ -36,45 +36,50 @@ void config_show() {
 bool config_init(int argc, char* argv[]) {
     // 解析命令行参数
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
+        if ((strcmp(argv[i], "--port") == 0 || strcmp(argv[i], "-p") == 0) && i + 1 < argc) {
             g_config.port = atoi(argv[i + 1]);
             if (g_config.port <= 0 || g_config.port > 65535) {
                 g_config.port = DEFAULT_PORT;
             }
             i++;
-        } else if (strcmp(argv[i], "--root") == 0 && i + 1 < argc) {
+        } else if ((strcmp(argv[i], "--root") == 0 || strcmp(argv[i], "-r") == 0) && i + 1 < argc) {
             strncpy(g_config.root_dir, argv[i + 1], sizeof(g_config.root_dir) - 1);
             g_config.root_dir[sizeof(g_config.root_dir) - 1] = '\0';
             i++;
-        } else if (strcmp(argv[i], "--no-directory-listing") == 0) {
+        } else if (strcmp(argv[i], "--no-directory-listing") == 0 || strcmp(argv[i], "-d") == 0) {
             g_config.directory_listing = false;
-        } else if (strcmp(argv[i], "--max-threads") == 0 && i + 1 < argc) {
+        } else if ((strcmp(argv[i], "--max-threads") == 0 || strcmp(argv[i], "-t") == 0) && i + 1 < argc) {
             g_config.max_threads = atoi(argv[i + 1]);
             if (g_config.max_threads <= 0) {
                 g_config.max_threads = MAX_THREADS;
             }
             i++;
-        } else if (strcmp(argv[i], "--max-queue") == 0 && i + 1 < argc) {
+        } else if ((strcmp(argv[i], "--max-queue") == 0 || strcmp(argv[i], "-q") == 0) && i + 1 < argc) {
             g_config.max_queue = atoi(argv[i + 1]);
             if (g_config.max_queue <= 0) {
                 g_config.max_queue = MAX_QUEUE;
             }
             i++;
-        } else if (strcmp(argv[i], "--no-cors") == 0) {
+        } else if (strcmp(argv[i], "--no-cors") == 0 || strcmp(argv[i], "-c") == 0) {
             g_config.cors = false;
-        } else if (strcmp(argv[i], "--no-gzip") == 0) {
+        } else if (strcmp(argv[i], "--no-gzip") == 0 || strcmp(argv[i], "-g") == 0) {
             g_config.gzip = false;
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            printf(INFO_COLOR SERVER_NAME " version: " SERVER_VERSION "\n\n" COLOR_RESET);
             printf("Usage: http-server [options]\n");
             printf("Options:\n");
-            printf("  --port <port>          Set server port (default: 80)\n");
-            printf("  --root <directory>     Set root directory (default: .)\n");
-            printf("  --no-directory-listing Disable directory listing\n");
-            printf("  --max-threads <n>      Set maximum number of threads\n");
-            printf("  --max-queue <n>        Set maximum queue length\n");
-            printf("  --no-cors              Disable CORS\n");
-            printf("  --no-gzip              Disable GZip compression (default: enabled)\n");
-            printf("  --help, -h             Show this help message\n");
+            printf("  -p, --port <port>          Set server port (default: %d)\n", DEFAULT_PORT);
+            printf("  -r, --root <directory>     Set root directory (default: %s)\n", g_config.root_dir);
+            printf("  -d, --no-directory-listing Disable directory listing (default: %s)\n", g_config.directory_listing ? "enabled" : "disabled");
+            printf("  -t, --max-threads <n>      Set maximum number of threads (default: %d)\n", g_config.max_threads);
+            printf("  -q, --max-queue <n>        Set maximum queue length (default: %d)\n", g_config.max_queue);
+            printf("  -c, --no-cors              Disable CORS (default: %s)\n", g_config.cors ? "enabled" : "disabled");
+            printf("  -g, --no-gzip              Disable GZip compression (default: %s)\n", g_config.gzip ? "enabled" : "disabled");
+            printf("  -h, --help,                Show this help message\n");
+            printf("  -v, --version,             Show version information\n");
+            return false;
+        } else if (strcmp(argv[i], "--version") == 0 || strcmp(argv[i], "-v") == 0) {
+            printf(INFO_COLOR SERVER_NAME " version: " SERVER_VERSION "\n" COLOR_RESET);
             return false;
         } else if (atoi(argv[i]) > 0) {
             // 兼容旧的端口参数格式

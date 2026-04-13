@@ -94,42 +94,53 @@ http://192.168.x.x:80
 
 # 指定根目录
 .\http-server.exe --root D:\www
+.\http-server.exe -r D:\www
 
 # 禁用目录列表
 .\http-server.exe --no-directory-listing
+.\http-server.exe -d
 
 # 设置最大线程数
 .\http-server.exe --max-threads 20
+.\http-server.exe -t 20
 
 # 设置最大队列长度
 .\http-server.exe --max-queue 100
+.\http-server.exe -q 100
 
 # 启用CORS（默认已启用）
 .\http-server.exe --cors
 
 # 禁用CORS
 .\http-server.exe --no-cors
+.\http-server.exe -c
 
 # 禁用GZip压缩（默认已启用）
 .\http-server.exe --no-gzip
+.\http-server.exe -g
 
 # 显示帮助
 .\http-server.exe --help
 .\http-server.exe -h
+
+# 显示版本信息
+.\http-server.exe --version
+.\http-server.exe -v
 ```
 
 ### 完整命令行选项
 
 | 选项 | 描述 | 默认值 |
 |------|------|--------|
-| `--port <port>` | 设置服务器端口 | 80 |
-| `--root <directory>` | 设置根目录 | . |
-| `--no-directory-listing` | 禁用目录列表 | 启用 |
-| `--max-threads <n>` | 设置最大线程数 | 10 |
-| `--max-queue <n>` | 设置最大队列长度 | 50 |
-| `--no-cors` | 禁用CORS | 启用 |
-| `--no-gzip` | 禁用GZip压缩 | 启用 |
+| `--port, -p <port>` | 设置服务器端口 | 80 |
+| `--root, -r <directory>` | 设置根目录 | . |
+| `--no-directory-listing, -d` | 禁用目录列表 | 启用 |
+| `--max-threads, -t <n>` | 设置最大线程数 | 10 |
+| `--max-queue, -q <n>` | 设置最大队列长度 | 50 |
+| `--no-cors, -c` | 禁用CORS | 启用 |
+| `--no-gzip, -g` | 禁用GZip压缩 | 启用 |
 | `--help, -h` | 显示帮助信息 | - |
+| `--version, -v` | 显示版本信息 | - |
 
 ### 支持的HTTP方法
 

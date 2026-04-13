@@ -94,43 +94,54 @@ http://192.168.x.x:80
 
 # Specify root directory
 .\http-server.exe --root D:\www
+.\http-server.exe -r D:\www
 
 # Disable directory listing
 .\http-server.exe --no-directory-listing
+.\http-server.exe -d
 
 # Set maximum threads
 .\http-server.exe --max-threads 20
+.\http-server.exe -t 20
 
 # Set maximum queue length
 .\http-server.exe --max-queue 100
+.\http-server.exe -q 100
 
 # Enable CORS (enabled by default)
 .\http-server.exe --cors
 
 # Disable CORS
 .\http-server.exe --no-cors
+.\http-server.exe -c
 
 # Disable GZip compression (enabled by default)
 .\http-server.exe --no-gzip
+.\http-server.exe -g
 
 # Show help
 .\http-server.exe --help
 .\http-server.exe -h
+
+# Show version information
+.\http-server.exe --version
+.\http-server.exe -v
 ```
 
 ### Full Command Line Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--port <port>` | Set server port | 80 |
-| `--root <directory>` | Set root directory | . |
-| `--no-directory-listing` | Disable directory listing | Enabled |
-| `--max-threads <n>` | Set maximum number of threads | 10 |
-| `--max-queue <n>` | Set maximum queue length | 50 |
+| `--port, -p <port>` | Set server port | 80 |
+| `--root, -r <directory>` | Set root directory | . |
+| `--no-directory-listing, -d` | Disable directory listing | Enabled |
+| `--max-threads, -t <n>` | Set maximum number of threads | 10 |
+| `--max-queue, -q <n>` | Set maximum queue length | 50 |
 | `--cors` | Enable CORS | Enabled |
-| `--no-cors` | Disable CORS | - |
-| `--no-gzip` | Disable GZip compression | Enabled |
+| `--no-cors, -c` | Disable CORS | - |
+| `--no-gzip, -g` | Disable GZip compression | Enabled |
 | `--help, -h` | Show this help message | - |
+| `--version, -v` | Show version information | - |
 
 ### Supported HTTP Methods
 
