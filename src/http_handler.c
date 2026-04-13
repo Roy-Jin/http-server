@@ -113,12 +113,12 @@ int validate_request(const char* method, const char* uri) {
 }
 
 // 处理索引文件查找
-int handle_index_files(SOCKET client, const char* root_dir, const char* request) {
+int handle_index_files(SOCKET client, const char* dir_path, const char* request) {
     char local_path[PATH_MAX_LEN];
     
     // 尝试查找索引文件
     for (int i = 0; i < 5 && g_config.index_files[i][0]; i++) {
-        sprintf(local_path, "%s/%s", root_dir, g_config.index_files[i]);
+        sprintf(local_path, "%s/%s", dir_path, g_config.index_files[i]);
         FILE* file = fopen_utf8(local_path, "rb");
         if (file) {
             fclose(file);
@@ -169,7 +169,7 @@ int handle_file_request(SOCKET client, const char* root_dir, const char* decoded
 }
 
 // 处理目录请求
-int handle_directory_request(SOCKET client, const char* root_dir, const char* decoded_uri) {
+int handle_directory_request(SOCKET client, const char* root_dir, const char* decoded_uri, const char* request) {
     char dir_path[PATH_MAX_LEN];
     sprintf(dir_path, "%s%s", root_dir, decoded_uri);
     
@@ -182,7 +182,12 @@ int handle_directory_request(SOCKET client, const char* root_dir, const char* de
             send_redirect(client, redirect_uri);
             return 1;
         } else {
-            // 显示目录列表
+            // 尝试查找索引文件
+            if (handle_index_files(client, dir_path, request)) {
+                return 1;
+            }
+            
+            // 索引文件不存在，显示目录列表
             if (g_config.directory_listing) {
                 send_directory_listing(client, dir_path, decoded_uri);
                 return 1;
@@ -242,7 +247,7 @@ void handle_request(SOCKET client, const char* request) {
         }
         
         // 文件不存在，检查是否为目录
-        if (handle_directory_request(client, g_config.root_dir, decoded_uri)) {
+        if (handle_directory_request(client, g_config.root_dir, decoded_uri, request)) {
             return;
         }
     }
