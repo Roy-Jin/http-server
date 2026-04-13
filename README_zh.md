@@ -132,15 +132,15 @@ http://192.168.x.x:80
 
 | 选项 | 描述 | 默认值 |
 |------|------|--------|
-| `--port, -p <port>` | 设置服务器端口 | 80 |
-| `--root, -r <directory>` | 设置根目录 | . |
-| `--no-directory-listing, -d` | 禁用目录列表 | 启用 |
-| `--max-threads, -t <n>` | 设置最大线程数 | 10 |
-| `--max-queue, -q <n>` | 设置最大队列长度 | 50 |
-| `--no-cors, -c` | 禁用CORS | 启用 |
-| `--no-gzip, -g` | 禁用GZip压缩 | 启用 |
-| `--help, -h` | 显示帮助信息 | - |
-| `--version, -v` | 显示版本信息 | - |
+| `-p, --port <port>` | 设置服务器端口 | 80 |
+| `-r, --root <directory>` | 设置根目录 | . |
+| `-d, --no-directory-listing` | 禁用目录列表 | 启用 |
+| `-t, --max-threads <n>` | 设置最大线程数 | 10 |
+| `-q, --max-queue <n>` | 设置最大队列长度 | 50 |
+| `-c, --no-cors` | 禁用CORS | 启用 |
+| `-g, --no-gzip` | 禁用GZip压缩 | 启用 |
+| `-h, --help` | 显示帮助信息 | - |
+| `-v, --version` | 显示版本信息 | - |
 
 ### 支持的HTTP方法
 

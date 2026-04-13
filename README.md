@@ -132,16 +132,15 @@ http://192.168.x.x:80
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--port, -p <port>` | Set server port | 80 |
-| `--root, -r <directory>` | Set root directory | . |
-| `--no-directory-listing, -d` | Disable directory listing | Enabled |
-| `--max-threads, -t <n>` | Set maximum number of threads | 10 |
-| `--max-queue, -q <n>` | Set maximum queue length | 50 |
-| `--cors` | Enable CORS | Enabled |
-| `--no-cors, -c` | Disable CORS | - |
-| `--no-gzip, -g` | Disable GZip compression | Enabled |
-| `--help, -h` | Show this help message | - |
-| `--version, -v` | Show version information | - |
+| `-p, --port <port>` | Set server port | 80 |
+| `-r, --root <directory>` | Set root directory | . |
+| `-d, --no-directory-listing` | Disable directory listing | Enabled |
+| `-t, --max-threads <n>` | Set maximum number of threads | 10 |
+| `-q, --max-queue <n>` | Set maximum queue length | 50 |
+| `-c, --no-cors` | Disable CORS | Enabled |
+| `-g, --no-gzip` | Disable GZip compression | Enabled |
+| `-h, --help` | Show this help message | - |
+| `-v, --version` | Show version information | - |
 
 ### Supported HTTP Methods
 
