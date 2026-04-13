@@ -123,15 +123,49 @@ void add_to_cache(const char* path, const char* content, long size, time_t last_
     g_file_cache.current_items++;
 }
 
+// 检查文件是否适合gzip压缩
+int is_compressible(const char* mime_type) {
+    // 文本类型适合压缩
+    const char* compressible_types[] = {
+        "text/",
+        "application/javascript",
+        "application/json",
+        "application/xml",
+        "application/css",
+        NULL
+    };
+    
+    for (int i = 0; compressible_types[i]; i++) {
+        if (strncmp(mime_type, compressible_types[i], strlen(compressible_types[i])) == 0) {
+            return 1;
+        }
+    }
+    
+    return 0;
+}
+
 // 发送文件内容（从路径）
-void send_file_from_path(SOCKET client, const char* path, const char* mime_type) {
+void send_file_from_path(SOCKET client, const char* path, const char* mime_type, int gzip_supported) {
     // 检查文件是否在缓存中
     char* cached_content = NULL;
     long cached_size = 0;
     time_t cached_mtime = 0;
     
     if (get_cached_file(path, &cached_content, &cached_size, &cached_mtime)) {
-        // 从缓存发送
+        // 检查是否支持gzip且文件适合压缩
+        if (gzip_supported && is_compressible(mime_type)) {
+            // 压缩缓存内容
+            char* compressed_content = NULL;
+            size_t compressed_size = 0;
+            if (gzip_compress(cached_content, cached_size, &compressed_content, &compressed_size)) {
+                send_header_gzip(client, 200, "OK", mime_type, (long)compressed_size, cached_mtime);
+                send(client, compressed_content, (int)compressed_size, 0);
+                free(compressed_content);
+                return;
+            }
+        }
+        
+        // 从缓存发送未压缩内容
         send_header(client, 200, "OK", mime_type, cached_size, cached_mtime);
         send(client, cached_content, (int)cached_size, 0);
         return;
@@ -159,12 +193,29 @@ void send_file_from_path(SOCKET client, const char* path, const char* mime_type)
                 wchar_t wpath[PATH_MAX_LEN];
                 MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, PATH_MAX_LEN);
                 struct _stat file_stat;
+                time_t modified_time = 0;
                 if (_wstat(wpath, &file_stat) == 0) {
-                    add_to_cache(path, buffer, file_size, file_stat.st_mtime);
+                    modified_time = file_stat.st_mtime;
+                    add_to_cache(path, buffer, file_size, modified_time);
                 }
                 
-                // 发送文件内容
-                send_header(client, 200, "OK", mime_type, file_size, file_stat.st_mtime);
+                // 检查是否支持gzip且文件适合压缩
+                if (gzip_supported && is_compressible(mime_type)) {
+                    // 压缩内容
+                    char* compressed_content = NULL;
+                    size_t compressed_size = 0;
+                    if (gzip_compress(buffer, file_size, &compressed_content, &compressed_size)) {
+                        send_header_gzip(client, 200, "OK", mime_type, (long)compressed_size, modified_time);
+                        send(client, compressed_content, (int)compressed_size, 0);
+                        free(compressed_content);
+                        free(buffer);
+                        fclose(file);
+                        return;
+                    }
+                }
+                
+                // 发送未压缩内容
+                send_header(client, 200, "OK", mime_type, file_size, modified_time);
                 send(client, buffer, (int)file_size, 0);
                 free(buffer);
                 fclose(file);
@@ -184,7 +235,7 @@ void send_file_from_path(SOCKET client, const char* path, const char* mime_type)
     }
     
     // 对于大文件或缓存失败的情况，使用零拷贝传输
-    send_file_content(client, file, mime_type, file_size, modified_time);
+    send_file_content(client, file, mime_type, file_size, modified_time, gzip_supported);
     fclose(file);
 }
 
@@ -218,7 +269,30 @@ void send_partial_file_content(SOCKET client, FILE *file, const char *mime_type,
     }
 }
 
-void send_file_content(SOCKET client, FILE *file, const char *mime_type, long file_size, time_t modified_time) {
+void send_file_content(SOCKET client, FILE *file, const char *mime_type, long file_size, time_t modified_time, int gzip_supported) {
+    // 检查是否支持gzip且文件适合压缩
+    if (gzip_supported && is_compressible(mime_type) && file_size < 1024 * 1024) { // 只对小文件进行压缩
+        // 读取整个文件到内存
+        char* buffer = (char*)malloc(file_size);
+        if (buffer) {
+            size_t bytes_read = fread(buffer, 1, file_size, file);
+            if (bytes_read == file_size) {
+                // 压缩内容
+                char* compressed_content = NULL;
+                size_t compressed_size = 0;
+                if (gzip_compress(buffer, file_size, &compressed_content, &compressed_size)) {
+                    send_header_gzip(client, 200, "OK", mime_type, (long)compressed_size, modified_time);
+                    send(client, compressed_content, (int)compressed_size, 0);
+                    free(compressed_content);
+                    free(buffer);
+                    return;
+                }
+            }
+            free(buffer);
+        }
+    }
+    
+    // 发送未压缩内容
     send_header(client, 200, "OK", mime_type, file_size, modified_time);
 
     // 使用传统的读写方式发送文件

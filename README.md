@@ -16,7 +16,8 @@ A lightweight HTTP server written in pure C, supporting Windows platform. This p
 - ✅ **Redirect support** - Supports HTTP redirect functionality
 - ✅ **Thread pool support** - Uses thread pool to handle concurrent requests, improving performance
 - ✅ **UTF-8 file path support** - Supports file paths with non-ASCII characters
-- ✅ **CORS support** - Can optionally enable Cross-Origin Resource Sharing
+- ✅ **CORS support** - Enabled by default, can be disabled
+- ✅ **GZip compression support** - Enabled by default, can be disabled
 - ✅ **File caching** - LRU cache strategy, max 100 items, max 10MB cache space
 - ✅ **Range request support** - Supports HTTP Range requests for video playback and resume downloads
 - ✅ **Index file support** - Auto-detects index.html, index.htm, index.php, default.html, default.htm
@@ -43,7 +44,7 @@ Use the provided build script:
 Or compile manually:
 
 ```bash
-gcc -o http-server.exe main.c src\server.c src\http_handler.c src\http_response.c src\file_handler.c src\utils.c src\config.c -lws2_32 -liphlpapi
+gcc -o http-server.exe main.c src\server.c src\http_handler.c src\http_response.c src\file_handler.c src\utils.c src\config.c -lws2_32 -liphlpapi -lz
 ```
 
 ### 2. Run the server
@@ -103,8 +104,14 @@ http://192.168.x.x:80
 # Set maximum queue length
 .\http-server.exe --max-queue 100
 
-# Enable CORS
-.\http-server.exe --enable-cors
+# Enable CORS (enabled by default)
+.\http-server.exe --cors
+
+# Disable CORS
+.\http-server.exe --no-cors
+
+# Disable GZip compression (enabled by default)
+.\http-server.exe --no-gzip
 
 # Show help
 .\http-server.exe --help
@@ -120,7 +127,9 @@ http://192.168.x.x:80
 | `--no-directory-listing` | Disable directory listing | Enabled |
 | `--max-threads <n>` | Set maximum number of threads | 10 |
 | `--max-queue <n>` | Set maximum queue length | 50 |
-| `--enable-cors` | Enable CORS | Disabled |
+| `--cors` | Enable CORS | Enabled |
+| `--no-cors` | Disable CORS | - |
+| `--no-gzip` | Disable GZip compression | Enabled |
 | `--help, -h` | Show this help message | - |
 
 ### Supported HTTP Methods
@@ -223,7 +232,6 @@ Welcome to submit Issues and Pull Requests to improve this project.
 - Does not support HTTP/2 protocol
 - Does not support WebSocket protocol
 - Does not support HTTP basic authentication
-- Does not support Gzip compression
 
 ---
 

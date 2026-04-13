@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <zlib.h>
 
 // 生成ETag
 void generate_etag(char* etag, long content_length, time_t modified_time) {
@@ -19,6 +20,31 @@ void send_header(SOCKET client, int status_code, const char* status_text,
         "HTTP/1.1 %d %s\r\n"
         "Content-Type: %s\r\n"
         "Content-Length: %ld\r\n"
+        "Connection: close\r\n"
+        "Server: " SERVER_NAME "/" SERVER_VERSION "\r\n"
+        "Cache-Control: max-age=3600\r\n"
+        "ETag: %s\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "X-Content-Type-Options: nosniff\r\n"
+        "X-Frame-Options: SAMEORIGIN\r\n"
+        "X-XSS-Protection: 1; mode=block\r\n"
+        "\r\n",
+        status_code, status_text, mime_type, content_length, etag);
+    
+    send(client, header, header_len, 0);
+}
+
+void send_header_gzip(SOCKET client, int status_code, const char* status_text, 
+                      const char* mime_type, long content_length, time_t modified_time) {
+    char header[BUFFER_SIZE];
+    char etag[64];
+    generate_etag(etag, content_length, modified_time);
+    
+    int header_len = sprintf(header,
+        "HTTP/1.1 %d %s\r\n"
+        "Content-Type: %s\r\n"
+        "Content-Length: %ld\r\n"
+        "Content-Encoding: gzip\r\n"
         "Connection: close\r\n"
         "Server: " SERVER_NAME "/" SERVER_VERSION "\r\n"
         "Cache-Control: max-age=3600\r\n"
@@ -164,4 +190,49 @@ void send_redirect(SOCKET client, const char* location) {
         "\r\n",
         location);
     send(client, header, header_len, 0);
+}
+
+int gzip_compress(const char* input, size_t input_len, char** output, size_t* output_len) {
+    z_stream strm;
+    int ret;
+    size_t buffer_size = input_len * 1.1 + 12 + 1024; // 预留一些空间
+    
+    *output = (char*)malloc(buffer_size);
+    if (!*output) {
+        return 0;
+    }
+    
+    // 初始化zlib
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
+    
+    // 设置gzip压缩级别
+    ret = deflateInit2(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 16 + MAX_WBITS, 8, Z_DEFAULT_STRATEGY);
+    if (ret != Z_OK) {
+        free(*output);
+        return 0;
+    }
+    
+    // 设置输入和输出缓冲区
+    strm.avail_in = (uInt)input_len;
+    strm.next_in = (Bytef*)input;
+    strm.avail_out = (uInt)buffer_size;
+    strm.next_out = (Bytef*)*output;
+    
+    // 执行压缩
+    ret = deflate(&strm, Z_FINISH);
+    if (ret != Z_STREAM_END) {
+        deflateEnd(&strm);
+        free(*output);
+        return 0;
+    }
+    
+    // 获取压缩后的大小
+    *output_len = buffer_size - strm.avail_out;
+    
+    // 清理zlib资源
+    deflateEnd(&strm);
+    
+    return 1;
 }

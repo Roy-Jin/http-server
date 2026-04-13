@@ -46,6 +46,38 @@ int parse_range_header(const char* request, long file_size, long* start, long* e
     return 1;
 }
 
+// 检查客户端是否支持gzip压缩
+int is_gzip_supported(const char* request) {
+    const char* accept_encoding = strstr(request, "Accept-Encoding:");
+    if (!accept_encoding) {
+        return 0; // 没有Accept-Encoding头
+    }
+    
+    accept_encoding += 16; // 跳过"Accept-Encoding: "
+    
+    // 检查是否包含gzip
+    while (*accept_encoding) {
+        // 跳过空格
+        while (*accept_encoding == ' ') {
+            accept_encoding++;
+        }
+        
+        // 检查是否是gzip
+        if (strncmp(accept_encoding, "gzip", 4) == 0) {
+            return 1;
+        }
+        
+        // 找到下一个编码
+        char* comma = strchr(accept_encoding, ',');
+        if (!comma) {
+            break;
+        }
+        accept_encoding = comma + 1;
+    }
+    
+    return 0;
+}
+
 // 辅助函数：打开UTF-8编码的文件路径
 FILE* fopen_utf8(const char* path, const char* mode) {
     wchar_t wpath[PATH_MAX_LEN];
@@ -81,7 +113,7 @@ int validate_request(const char* method, const char* uri) {
 }
 
 // 处理索引文件查找
-int handle_index_files(SOCKET client, const char* root_dir) {
+int handle_index_files(SOCKET client, const char* root_dir, const char* request) {
     char local_path[PATH_MAX_LEN];
     
     // 尝试查找索引文件
@@ -91,7 +123,8 @@ int handle_index_files(SOCKET client, const char* root_dir) {
         if (file) {
             fclose(file);
             const char* mime = get_mime_type(local_path);
-            send_file_from_path(client, local_path, mime);
+            int gzip_supported = g_config.gzip && is_gzip_supported(request);
+            send_file_from_path(client, local_path, mime, gzip_supported);
             return 1;
         }
     }
@@ -116,6 +149,7 @@ int handle_file_request(SOCKET client, const char* root_dir, const char* decoded
         // 检查是否有Range请求
         long start = 0, end = 0;
         const char* mime = get_mime_type(local_path);
+        int gzip_supported = g_config.gzip && is_gzip_supported(request);
         
         if (parse_range_header(request, file_size, &start, &end)) {
             // 处理范围请求
@@ -123,7 +157,7 @@ int handle_file_request(SOCKET client, const char* root_dir, const char* decoded
         } else {
             // 正常请求，使用缓存机制
             fclose(file);
-            send_file_from_path(client, local_path, mime);
+            send_file_from_path(client, local_path, mime, gzip_supported);
             return 1;
         }
         
@@ -187,7 +221,7 @@ void handle_request(SOCKET client, const char* request) {
     // 处理根目录请求
     if (strcmp(decoded_uri, "/") == 0) {
         // 尝试处理索引文件
-        if (handle_index_files(client, g_config.root_dir)) {
+        if (handle_index_files(client, g_config.root_dir, request)) {
             return;
         }
         

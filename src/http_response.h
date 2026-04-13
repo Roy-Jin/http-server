@@ -5,7 +5,10 @@
 
 void send_header(SOCKET client, int status_code, const char* status_text, 
                  const char* mime_type, long content_length, time_t modified_time);
+void send_header_gzip(SOCKET client, int status_code, const char* status_text, 
+                      const char* mime_type, long content_length, time_t modified_time);
 void send_404(SOCKET client);
 void send_redirect(SOCKET client, const char* location);
+int gzip_compress(const char* input, size_t input_len, char** output, size_t* output_len);
 
 #endif

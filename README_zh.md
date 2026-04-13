@@ -16,7 +16,8 @@
 - ✅ **重定向支持** - 支持HTTP重定向功能
 - ✅ **线程池支持** - 使用线程池处理并发请求，提高性能
 - ✅ **UTF-8文件路径支持** - 支持包含非ASCII字符的文件路径
-- ✅ **CORS支持** - 可选择启用跨域资源共享
+- ✅ **CORS支持** - 默认启用跨域资源共享，可选择禁用
+- ✅ **GZip压缩支持** - 默认启用GZip压缩，可选择禁用
 - ✅ **文件缓存** - LRU缓存策略，最大100项，最大10MB缓存空间
 - ✅ **范围请求支持** - 支持HTTP Range请求，可用于视频播放和断点续传
 - ✅ **索引文件支持** - 自动识别 index.html, index.htm, index.php, default.html, default.htm
@@ -43,7 +44,7 @@
 或者手动编译：
 
 ```bash
-gcc -o http-server.exe main.c src\server.c src\http_handler.c src\http_response.c src\file_handler.c src\utils.c src\config.c -lws2_32 -liphlpapi
+gcc -o http-server.exe main.c src\server.c src\http_handler.c src\http_response.c src\file_handler.c src\utils.c src\config.c -lws2_32 -liphlpapi -lz
 ```
 
 ### 2. 运行服务器
@@ -103,8 +104,14 @@ http://192.168.x.x:80
 # 设置最大队列长度
 .\http-server.exe --max-queue 100
 
-# 启用CORS
-.\http-server.exe --enable-cors
+# 启用CORS（默认已启用）
+.\http-server.exe --cors
+
+# 禁用CORS
+.\http-server.exe --no-cors
+
+# 禁用GZip压缩（默认已启用）
+.\http-server.exe --no-gzip
 
 # 显示帮助
 .\http-server.exe --help
@@ -120,7 +127,8 @@ http://192.168.x.x:80
 | `--no-directory-listing` | 禁用目录列表 | 启用 |
 | `--max-threads <n>` | 设置最大线程数 | 10 |
 | `--max-queue <n>` | 设置最大队列长度 | 50 |
-| `--enable-cors` | 启用CORS | 禁用 |
+| `--no-cors` | 禁用CORS | 启用 |
+| `--no-gzip` | 禁用GZip压缩 | 启用 |
 | `--help, -h` | 显示帮助信息 | - |
 
 ### 支持的HTTP方法
@@ -223,7 +231,6 @@ http-server/
 - 不支持HTTP/2协议
 - 不支持WebSocket协议
 - 不支持HTTP基本认证
-- 不支持Gzip压缩
 
 ---
 

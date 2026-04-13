@@ -40,13 +40,13 @@ int get_cached_file(const char* path, char** content, long* size, time_t* last_m
 void add_to_cache(const char* path, const char* content, long size, time_t last_modified);
 
 // 发送文件内容（已打开的文件）
-void send_file_content(SOCKET client, FILE* file, const char* mime_type, long file_size, time_t modified_time);
+void send_file_content(SOCKET client, FILE* file, const char* mime_type, long file_size, time_t modified_time, int gzip_supported);
 
 // 发送部分文件内容（支持范围请求）
 void send_partial_file_content(SOCKET client, FILE* file, const char* mime_type, long file_size, long start, long end);
 
 // 发送文件内容（从路径）
-void send_file_from_path(SOCKET client, const char* path, const char* mime_type);
+void send_file_from_path(SOCKET client, const char* path, const char* mime_type, int gzip_supported);
 
 // 发送目录列表页面
 void send_directory_listing(SOCKET client, const char* dir_path, const char* request_uri);

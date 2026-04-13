@@ -13,7 +13,8 @@ Config g_config = {
     .directory_listing = true,
     .max_threads = MAX_THREADS,
     .max_queue = MAX_QUEUE,
-    .enable_cors = false,
+    .cors = true,
+    .gzip = true,
     .index_files = {{"index.html"}, {"index.htm"}, {"index.php"}, {"default.html"}, {"default.htm"}}
 };
 
@@ -22,7 +23,8 @@ void config_show() {
     printf("\n" HEADER_COLOR "Starting up " SERVER_NAME ", serving %s" COLOR_RESET "\n\n", g_config.root_dir);
     printf(INFO_COLOR SERVER_NAME " version: " SERVER_VERSION "\n\n" COLOR_RESET);
     printf(HEADER_COLOR SERVER_NAME " settings:" COLOR_RESET "\n");
-    printf(INFO_COLOR "CORS: " VALUE_COLOR "%s\n" COLOR_RESET, g_config.enable_cors ? "enabled" : "disabled");
+    printf(INFO_COLOR "GZip: " VALUE_COLOR "%s\n" COLOR_RESET, g_config.gzip ? "enabled" : "disabled");
+    printf(INFO_COLOR "CORS: " VALUE_COLOR "%s\n" COLOR_RESET, g_config.cors ? "enabled" : "disabled");
     printf(INFO_COLOR "Cache: " VALUE_COLOR "3600 seconds\n" COLOR_RESET);
     printf(INFO_COLOR "Connection Timeout: " VALUE_COLOR "120 seconds\n" COLOR_RESET);
     printf(INFO_COLOR "Directory Listings: " VALUE_COLOR "%s\n" COLOR_RESET, g_config.directory_listing ? "visible" : "hidden");
@@ -58,8 +60,10 @@ bool config_init(int argc, char* argv[]) {
                 g_config.max_queue = MAX_QUEUE;
             }
             i++;
-        } else if (strcmp(argv[i], "--enable-cors") == 0) {
-            g_config.enable_cors = true;
+        } else if (strcmp(argv[i], "--no-cors") == 0) {
+            g_config.cors = false;
+        } else if (strcmp(argv[i], "--no-gzip") == 0) {
+            g_config.gzip = false;
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             printf("Usage: http-server [options]\n");
             printf("Options:\n");
@@ -68,7 +72,8 @@ bool config_init(int argc, char* argv[]) {
             printf("  --no-directory-listing Disable directory listing\n");
             printf("  --max-threads <n>      Set maximum number of threads\n");
             printf("  --max-queue <n>        Set maximum queue length\n");
-            printf("  --enable-cors          Enable CORS\n");
+            printf("  --no-cors              Disable CORS\n");
+            printf("  --no-gzip              Disable GZip compression (default: enabled)\n");
             printf("  --help, -h             Show this help message\n");
             return false;
         } else if (atoi(argv[i]) > 0) {

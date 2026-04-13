@@ -15,7 +15,8 @@ typedef struct {
     bool directory_listing; // 是否启用目录列表
     int max_threads;        // 最大线程数
     int max_queue;          // 最大队列长度
-    bool enable_cors;       // 是否启用CORS
+    bool cors;              // 是否启用CORS
+    bool gzip;              // 是否启用GZip
     char index_files[5][128]; // 索引文件列表
 } Config;
 
